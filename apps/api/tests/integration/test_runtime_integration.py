@@ -140,6 +140,39 @@ class RuntimeIntegrationTest(unittest.IsolatedAsyncioTestCase):
                 last_seq=0,
             )
 
+    async def test_member_cannot_request_high_impact_delegation_approval(self) -> None:
+        approvals = ApprovalService()
+        runtime = AgentRuntime(
+            memory_store=SqliteMemoryStore(),
+            policy_engine=PolicyEngine(),
+            outbox=AgentRunEventOutbox(),
+            completion_client=StubCompletionClient(),
+            approval_service=approvals,
+            audit_log=ImmutableAuditLog(),
+        )
+
+        owner = ActorContext(user_id="owner-int", role="owner")
+        member = ActorContext(user_id="member-int", role="member")
+
+        runtime.upsert_specialist(
+            workspace_id="ws-int-member-risk",
+            actor=owner,
+            specialist=SpecialistAgent(
+                id="spec-risk",
+                name="Risk Specialist",
+                prompt="Perform risky action",
+                soul="Cautious",
+                capabilities={"delegate", "external_action"},
+            ),
+        )
+
+        with self.assertRaises(PermissionError):
+            await runtime.execute_goal(
+                workspace_id="ws-int-member-risk",
+                actor=member,
+                goal="run external action",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

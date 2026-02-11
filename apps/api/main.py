@@ -14,7 +14,7 @@ from apps.api.agents import (
     StubCompletionClient,
 )
 from apps.api.audit import ImmutableAuditLog
-from apps.api.auth import InvitationService
+from apps.api.auth import InvitationService, WorkspaceAccessService
 from apps.api.db.sqlite import enforce_sqlite_security_if_enabled
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
@@ -146,6 +146,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     approval_service = ApprovalService()
     audit_log = ImmutableAuditLog()
     invitation_service = InvitationService()
+    workspace_access_service = WorkspaceAccessService()
 
     app.state.runtime = AgentRuntime(
         memory_store=memory_store,
@@ -158,11 +159,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.approvals = approval_service
     app.state.audit_log = audit_log
     app.state.invitations = invitation_service
+    app.state.workspace_access = workspace_access_service
     yield
     del app.state.runtime
     del app.state.approvals
     del app.state.audit_log
     del app.state.invitations
+    del app.state.workspace_access
 
 
 app = FastAPI(
@@ -217,6 +220,16 @@ def get_invitations(request: Request) -> InvitationService:
     return cast(InvitationService, invitations)
 
 
+def get_workspace_access(request: Request) -> WorkspaceAccessService:
+    workspace_access = getattr(request.app.state, "workspace_access", None)
+    if workspace_access is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="workspace access service unavailable",
+        )
+    return cast(WorkspaceAccessService, workspace_access)
+
+
 def get_actor(
     x_user_id: str | None = Header(default=None),
     x_user_role: str | None = Header(default=None),
@@ -240,11 +253,33 @@ def invitation_token_fingerprint(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()[:12]
 
 
+def authorize_workspace_access(
+    *,
+    workspace_id: str,
+    actor: ActorContext,
+    workspace_access: WorkspaceAccessService,
+) -> None:
+    try:
+        workspace_access.ensure_workspace_access(
+            workspace_id=workspace_id,
+            actor=actor,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+
 @app.get("/workspaces/{workspace_id}/specialists", response_model=list[SpecialistResponse])
 async def list_specialists(
     workspace_id: str,
     runtime: AgentRuntime = Depends(get_runtime),
+    actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> list[SpecialistResponse]:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     specialists = runtime.list_specialists(workspace_id=workspace_id)
     return [
         SpecialistResponse(
@@ -268,7 +303,13 @@ async def upsert_specialist(
     payload: SpecialistPayload,
     runtime: AgentRuntime = Depends(get_runtime),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> SpecialistResponse:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     specialist = SpecialistAgent(
         id=payload.id,
         name=payload.name,
@@ -306,7 +347,13 @@ async def send_companion_message(
     payload: CompanionMessageRequest,
     runtime: AgentRuntime = Depends(get_runtime),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> CompanionMessageResponse:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     reply = await runtime.companion_message(
         workspace_id=workspace_id,
         actor_id=actor.user_id,
@@ -324,7 +371,13 @@ async def execute_goal(
     payload: ExecutionGoalRequest,
     runtime: AgentRuntime = Depends(get_runtime),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> ExecutionGoalResponse:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     try:
         result = await runtime.execute_goal(
             workspace_id=workspace_id,
@@ -342,6 +395,8 @@ async def execute_goal(
         ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
     return ExecutionGoalResponse(
         agent_run_id=result.agent_run_id,
@@ -392,7 +447,13 @@ async def create_invitation(
     invitations: InvitationService = Depends(get_invitations),
     audit_log: ImmutableAuditLog = Depends(get_audit_log),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> InvitationResponse:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     if actor.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
 
@@ -428,7 +489,13 @@ async def list_invitations(
     workspace_id: str,
     invitations: InvitationService = Depends(get_invitations),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> list[InvitationResponse]:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     if actor.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
 
@@ -454,6 +521,7 @@ async def accept_invitation(
     payload: InvitationAcceptRequest,
     invitations: InvitationService = Depends(get_invitations),
     audit_log: ImmutableAuditLog = Depends(get_audit_log),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> MembershipResponse:
     try:
         membership = invitations.accept_invitation(token=token, user_id=payload.user_id)
@@ -469,6 +537,10 @@ async def accept_invitation(
             "token_fingerprint": invitation_token_fingerprint(token),
             "role": membership.role,
         },
+    )
+    workspace_access.add_workspace_member(
+        workspace_id=membership.workspace_id,
+        user_id=membership.user_id,
     )
     return MembershipResponse(
         workspace_id=membership.workspace_id,
@@ -489,7 +561,13 @@ async def create_approval(
     approvals: ApprovalService = Depends(get_approvals),
     audit_log: ImmutableAuditLog = Depends(get_audit_log),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> ApprovalResponse:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     request = approvals.create_request(
         workspace_id=workspace_id,
         actor_id=actor.user_id,
@@ -566,7 +644,13 @@ async def list_approvals(
     workspace_id: str,
     approvals: ApprovalService = Depends(get_approvals),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> list[ApprovalResponse]:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     if actor.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
 
@@ -593,7 +677,13 @@ async def list_audit_events(
     workspace_id: str,
     audit_log: ImmutableAuditLog = Depends(get_audit_log),
     actor: ActorContext = Depends(get_actor),
+    workspace_access: WorkspaceAccessService = Depends(get_workspace_access),
 ) -> list[AuditEventResponse]:
+    authorize_workspace_access(
+        workspace_id=workspace_id,
+        actor=actor,
+        workspace_access=workspace_access,
+    )
     if actor.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
 

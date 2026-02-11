@@ -154,15 +154,38 @@ class AgentRuntime:
         approved_ids = approved_request_ids or set()
         specialists = self.list_specialists(workspace_id=workspace_id)
         eligible_specialists: list[tuple[SpecialistAgent, bool]] = []
+        denied_reasons: list[str] = []
         for specialist in specialists:
             decision = self._policy.can_delegate(
                 actor=actor,
                 capabilities=specialist.capabilities,
             )
+            if not decision.allowed:
+                if decision.reason is not None:
+                    denied_reasons.append(decision.reason)
+                continue
             if decision.allowed:
                 eligible_specialists.append((specialist, decision.requires_approval))
 
         if not eligible_specialists:
+            high_impact_denied = next(
+                (
+                    reason
+                    for reason in denied_reasons
+                    if "high-impact" in reason
+                ),
+                None,
+            )
+            if high_impact_denied is not None:
+                self._audit.append_event(
+                    workspace_id=workspace_id,
+                    actor_id=actor.user_id,
+                    action="goal.execute",
+                    outcome="rejected",
+                    metadata={"reason": high_impact_denied},
+                )
+                raise PermissionError(high_impact_denied)
+
             self._audit.append_event(
                 workspace_id=workspace_id,
                 actor_id=actor.user_id,

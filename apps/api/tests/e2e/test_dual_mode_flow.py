@@ -62,6 +62,24 @@ class DualModeFlowE2ETest(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 403)
 
+    def test_list_specialists_requires_identity_headers_e2e(self) -> None:
+        with TestClient(app) as client:
+            create = client.post(
+                "/workspaces/ws-e2e-specialists/specialists",
+                json={
+                    "id": "spec-list-auth",
+                    "name": "List Auth Specialist",
+                    "prompt": "Do work",
+                    "soul": "Strict",
+                    "capabilities": ["delegate"],
+                },
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(create.status_code, 201)
+
+            listed = client.get("/workspaces/ws-e2e-specialists/specialists")
+            self.assertEqual(listed.status_code, 401)
+
     def test_privileged_route_rejects_missing_identity_headers_e2e(self) -> None:
         with TestClient(app) as client:
             response = client.post(
@@ -116,6 +134,46 @@ class DualModeFlowE2ETest(unittest.TestCase):
             )
             self.assertEqual(second_execute.status_code, 200)
             self.assertEqual(len(second_execute.json()["delegated_results"]), 1)
+
+    def test_member_cannot_execute_high_impact_goal_e2e(self) -> None:
+        with TestClient(app) as client:
+            create_invitation = client.post(
+                "/workspaces/ws-e2e-member-risk/invitations",
+                json={"email": "member-risk@example.com"},
+                headers={"x-user-id": "owner-e2e-risk", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_invitation.status_code, 201)
+            token = create_invitation.json()["token"]
+
+            accept_invitation = client.post(
+                f"/invitations/{token}/accept",
+                json={"user_id": "member-e2e-risk"},
+            )
+            self.assertEqual(accept_invitation.status_code, 200)
+
+            create_specialist = client.post(
+                "/workspaces/ws-e2e-member-risk/specialists",
+                json={
+                    "id": "spec-member-risk",
+                    "name": "Member Risk Specialist",
+                    "prompt": "Perform external action",
+                    "soul": "Cautious",
+                    "capabilities": ["delegate", "external_action"],
+                },
+                headers={"x-user-id": "owner-e2e-risk", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_specialist.status_code, 201)
+
+            member_execute = client.post(
+                "/workspaces/ws-e2e-member-risk/execution/goals",
+                json={"goal": "perform high impact action"},
+                headers={"x-user-id": "member-e2e-risk", "x-user-role": "member"},
+            )
+            self.assertEqual(member_execute.status_code, 403)
+            self.assertIn(
+                "high-impact",
+                member_execute.json()["detail"],
+            )
 
     def test_invitation_flow_and_audit_log_e2e(self) -> None:
         with TestClient(app) as client:
@@ -217,6 +275,63 @@ class DualModeFlowE2ETest(unittest.TestCase):
                 headers={"x-user-id": "owner-b", "x-user-role": "owner"},
             )
             self.assertEqual(cross_decide.status_code, 403)
+
+    def test_cross_workspace_owner_cannot_read_foreign_workspace_records_e2e(self) -> None:
+        with TestClient(app) as client:
+            create_specialist = client.post(
+                "/workspaces/ws-e2e-tenant-a/specialists",
+                json={
+                    "id": "spec-tenant-a",
+                    "name": "Tenant A Specialist",
+                    "prompt": "Do work",
+                    "soul": "Strict",
+                    "capabilities": ["delegate"],
+                },
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_specialist.status_code, 201)
+
+            create_invitation = client.post(
+                "/workspaces/ws-e2e-tenant-a/invitations",
+                json={"email": "invitee@example.com"},
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_invitation.status_code, 201)
+
+            create_approval = client.post(
+                "/workspaces/ws-e2e-tenant-a/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_approval.status_code, 201)
+
+            foreign_specialists = client.get(
+                "/workspaces/ws-e2e-tenant-a/specialists",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_specialists.status_code, 403)
+
+            foreign_invitations = client.get(
+                "/workspaces/ws-e2e-tenant-a/invitations",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_invitations.status_code, 403)
+
+            foreign_approvals = client.get(
+                "/workspaces/ws-e2e-tenant-a/approvals",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_approvals.status_code, 403)
+
+            foreign_audit = client.get(
+                "/workspaces/ws-e2e-tenant-a/audit-events",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_audit.status_code, 403)
 
 
 if __name__ == "__main__":

@@ -52,5 +52,11 @@ class PolicyEngine:
         if actor.role not in {"owner", "member"}:
             return PolicyDecision(allowed=False, reason="unsupported actor role")
 
+        if actor.role == "member" and capabilities.intersection(HIGH_IMPACT_CAPABILITIES):
+            return PolicyDecision(
+                allowed=False,
+                reason="members cannot delegate high-impact capabilities",
+            )
+
         requires_approval = bool(capabilities.intersection(HIGH_IMPACT_CAPABILITIES))
         return PolicyDecision(allowed=True, requires_approval=requires_approval)

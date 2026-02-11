@@ -39,6 +39,18 @@ class PolicyEngineTest(unittest.TestCase):
         self.assertFalse(decision.allowed)
         self.assertEqual(decision.reason, "unsupported actor role")
 
+    def test_member_cannot_delegate_high_impact_capabilities(self) -> None:
+        engine = PolicyEngine()
+        actor = ActorContext(user_id="u1", role="member")
+
+        decision = engine.can_delegate(
+            actor=actor,
+            capabilities={"delegate", "external_action"},
+        )
+
+        self.assertFalse(decision.allowed)
+        self.assertIn("high-impact", decision.reason or "")
+
 
 if __name__ == "__main__":
     unittest.main()

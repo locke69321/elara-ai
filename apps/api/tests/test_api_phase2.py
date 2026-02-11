@@ -77,7 +77,10 @@ class Phase2ApiTest(unittest.TestCase):
             self.assertGreaterEqual(len(replay_payload), 1)
             self.assertEqual(replay_payload[0]["seq"], 2)
 
-            listed = client.get("/workspaces/ws-2/specialists")
+            listed = client.get(
+                "/workspaces/ws-2/specialists",
+                headers={"x-user-id": "owner-1", "x-user-role": "owner"},
+            )
             self.assertEqual(listed.status_code, 200)
             self.assertEqual(len(listed.json()), 1)
 
@@ -144,6 +147,44 @@ class Phase2ApiTest(unittest.TestCase):
                 headers={"x-user-id": "member-invite", "x-user-role": "member"},
             )
             self.assertEqual(response.status_code, 403)
+
+    def test_cross_workspace_owner_cannot_list_foreign_records(self) -> None:
+        with TestClient(app) as client:
+            create_invitation = client.post(
+                "/workspaces/ws-tenant-invite/invitations",
+                json={"email": "new-user@example.com"},
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_invitation.status_code, 201)
+
+            create_approval = client.post(
+                "/workspaces/ws-tenant-invite/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_approval.status_code, 201)
+
+            foreign_invitations = client.get(
+                "/workspaces/ws-tenant-invite/invitations",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_invitations.status_code, 403)
+
+            foreign_approvals = client.get(
+                "/workspaces/ws-tenant-invite/approvals",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_approvals.status_code, 403)
+
+            foreign_audit = client.get(
+                "/workspaces/ws-tenant-invite/audit-events",
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(foreign_audit.status_code, 403)
 
     def test_invitation_audit_metadata_redacts_raw_token(self) -> None:
         with TestClient(app) as client:
