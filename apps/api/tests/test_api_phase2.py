@@ -173,6 +173,39 @@ class Phase2ApiTest(unittest.TestCase):
             self.assertEqual(listed.status_code, 200)
             self.assertEqual(len(listed.json()), 1)
 
+    def test_owner_cannot_decide_other_owners_approval_request(self) -> None:
+        with TestClient(app) as client:
+            create_ws_a = client.post(
+                "/workspaces/ws-approval-a/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec-a:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_ws_a.status_code, 201)
+            approval_id = create_ws_a.json()["id"]
+
+            # Seed a separate workspace request for owner-b to model a different tenant owner.
+            create_ws_b = client.post(
+                "/workspaces/ws-approval-b/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec-b:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_ws_b.status_code, 201)
+
+            cross_decide = client.post(
+                f"/approvals/{approval_id}/decision",
+                json={"decision": "approved"},
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(cross_decide.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

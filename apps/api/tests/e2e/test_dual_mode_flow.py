@@ -166,6 +166,38 @@ class DualModeFlowE2ETest(unittest.TestCase):
             self.assertEqual(owner_replay.status_code, 200)
             self.assertGreaterEqual(len(owner_replay.json()), 1)
 
+    def test_cross_workspace_owner_cannot_decide_foreign_approval_e2e(self) -> None:
+        with TestClient(app) as client:
+            create_ws_a = client.post(
+                "/workspaces/ws-e2e-approval-a/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec-a:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-a", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_ws_a.status_code, 201)
+            approval_id = create_ws_a.json()["id"]
+
+            create_ws_b = client.post(
+                "/workspaces/ws-e2e-approval-b/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec-b:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_ws_b.status_code, 201)
+
+            cross_decide = client.post(
+                f"/approvals/{approval_id}/decision",
+                json={"decision": "approved"},
+                headers={"x-user-id": "owner-b", "x-user-role": "owner"},
+            )
+            self.assertEqual(cross_decide.status_code, 403)
+
 
 if __name__ == "__main__":
     unittest.main()

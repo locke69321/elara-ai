@@ -69,6 +69,8 @@ class ApprovalService:
             raise ValueError("approval request not found")
         if request.status != "pending":
             raise ValueError("approval request is already decided")
+        if approver_id != request.actor_id:
+            raise PermissionError("approver is not authorized for this approval request")
 
         decided = ApprovalRequest(
             id=request.id,
