@@ -376,6 +376,13 @@ flowchart TD
   - New user can self-host and complete first conversation + delegated goal in under 30 minutes
   - Backup/restore drill executed successfully on SQLite and Postgres deployment variants
 
+### Phase 4 Execution Progress (2026-02-11)
+- [x] Added self-host quickstart: `docs/setup/self-hosted-quickstart.md`.
+- [x] Added Agent Studio guide: `docs/user-guide/agent-studio.md`.
+- [x] Added memory controls guide: `docs/user-guide/memory-controls.md`.
+- [x] Added backup/restore runbook: `docs/ops/backup-restore.md`.
+- [x] Added key-rotation and secure-mode guidance in setup/ops documentation.
+
 ## Alternative Approaches Considered
 - Companion-first v1: rejected because execution would likely be shallow.
 - Orchestrator-first v1: rejected because companion continuity would become secondary.
@@ -403,10 +410,10 @@ flowchart TD
 - [ ] Cross-workspace retrieval leakage rate is 0 in authorization test suite.
 
 ### Quality Gates
-- [ ] Backend test suite covers auth, policy checks, memory adapters, and delegation paths.
-- [ ] Frontend test suite covers dual-mode navigation and agent configuration workflows.
+- [x] Backend test suite covers auth, policy checks, memory adapters, and delegation paths.
+- [x] Frontend test suite covers dual-mode navigation and agent configuration workflows.
 - [ ] Security checklist completed (secrets handling, authz checks, encryption validation).
-- [ ] Documentation includes setup, backup/restore, and key rotation guidance.
+- [x] Documentation includes setup, backup/restore, and key rotation guidance.
 - [ ] Performance benchmark script and fixture dataset are checked in and runnable in CI/local.
 - [ ] Supabase adapter security tests verify RLS enforcement and prevent cross-workspace data access.
 - [ ] SQLite encrypted-vector compatibility matrix is documented and verified in CI for supported environments.
