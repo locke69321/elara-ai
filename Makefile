@@ -1,4 +1,4 @@
-SHELL := /bin/zsh
+SHELL := /bin/bash
 
 .PHONY: help bootstrap api-test api-test-e2e api-test-integration api-test-unit web-test test lint api-lint web-lint typecheck api-typecheck web-typecheck no-any coverage api-coverage web-coverage worker-coverage coverage-all web-browser-contract app-authz-integration sqlite-compat perf check dev-api clean
 
