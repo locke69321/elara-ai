@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from hashlib import sha256
 from typing import Literal, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
@@ -235,6 +236,10 @@ def get_actor(
     return ActorContext(user_id=x_user_id, role=cast(Role, x_user_role))
 
 
+def invitation_token_fingerprint(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()[:12]
+
+
 @app.get("/workspaces/{workspace_id}/specialists", response_model=list[SpecialistResponse])
 async def list_specialists(
     workspace_id: str,
@@ -401,7 +406,10 @@ async def create_invitation(
         actor_id=actor.user_id,
         action="invitation.created",
         outcome="success",
-        metadata={"email": payload.email, "token": invitation.token},
+        metadata={
+            "email": payload.email,
+            "token_fingerprint": invitation_token_fingerprint(invitation.token),
+        },
     )
     return InvitationResponse(
         token=invitation.token,
@@ -457,7 +465,10 @@ async def accept_invitation(
         actor_id=payload.user_id,
         action="invitation.accepted",
         outcome="success",
-        metadata={"token": token, "role": membership.role},
+        metadata={
+            "token_fingerprint": invitation_token_fingerprint(token),
+            "role": membership.role,
+        },
     )
     return MembershipResponse(
         workspace_id=membership.workspace_id,

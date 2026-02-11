@@ -56,6 +56,7 @@ Out of scope (v2+):
 5. Invitation abuse or replay
 - Threat: reused or expired invitation token grants unintended membership.
 - Control: invitation service marks tokens accepted once and rejects reused/expired tokens.
+- Control: audit metadata records token fingerprints only; raw bearer invitation tokens are never logged.
 - Validation: unit tests verify duplicate acceptance is rejected.
 
 ## Security Checklist (Pre-Release)
@@ -64,6 +65,7 @@ Out of scope (v2+):
 - [x] High-impact delegation requires explicit approval
 - [x] Approval decisions are auditable with actor and timestamp
 - [x] Invitation creation and acceptance are auditable
+- [x] Invitation audit metadata redacts bearer tokens via fingerprints
 - [x] SQLCipher secure-mode startup guard exists and fails closed
 - [x] Lint/typecheck/no-any/coverage gates pass via `make check`
 - [ ] External tool allowlist enforcement finalized for production providers

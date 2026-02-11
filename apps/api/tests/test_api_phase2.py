@@ -1,4 +1,5 @@
 import unittest
+from hashlib import sha256
 
 from fastapi.testclient import TestClient
 
@@ -143,6 +144,51 @@ class Phase2ApiTest(unittest.TestCase):
                 headers={"x-user-id": "member-invite", "x-user-role": "member"},
             )
             self.assertEqual(response.status_code, 403)
+
+    def test_invitation_audit_metadata_redacts_raw_token(self) -> None:
+        with TestClient(app) as client:
+            create = client.post(
+                "/workspaces/ws-invite-audit/invitations",
+                json={"email": "new-user@example.com"},
+                headers={"x-user-id": "owner-invite", "x-user-role": "owner"},
+            )
+            self.assertEqual(create.status_code, 201)
+            token = create.json()["token"]
+            expected_fingerprint = sha256(token.encode("utf-8")).hexdigest()[:12]
+
+            accepted = client.post(
+                f"/invitations/{token}/accept",
+                json={"user_id": "member-invite"},
+            )
+            self.assertEqual(accepted.status_code, 200)
+
+            audit_events = client.get(
+                "/workspaces/ws-invite-audit/audit-events",
+                headers={"x-user-id": "owner-invite", "x-user-role": "owner"},
+            )
+            self.assertEqual(audit_events.status_code, 200)
+
+            created_event = next(
+                event
+                for event in audit_events.json()
+                if event["action"] == "invitation.created"
+            )
+            accepted_event = next(
+                event
+                for event in audit_events.json()
+                if event["action"] == "invitation.accepted"
+            )
+
+            self.assertNotIn("token", created_event["metadata"])
+            self.assertNotIn("token", accepted_event["metadata"])
+            self.assertEqual(
+                created_event["metadata"]["token_fingerprint"],
+                expected_fingerprint,
+            )
+            self.assertEqual(
+                accepted_event["metadata"]["token_fingerprint"],
+                expected_fingerprint,
+            )
 
     def test_owner_can_create_and_decide_approval(self) -> None:
         with TestClient(app) as client:

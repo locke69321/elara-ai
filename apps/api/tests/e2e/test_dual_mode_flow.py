@@ -1,4 +1,5 @@
 import unittest
+from hashlib import sha256
 
 from fastapi.testclient import TestClient
 
@@ -137,9 +138,28 @@ class DualModeFlowE2ETest(unittest.TestCase):
                 headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
             )
             self.assertEqual(audit_events.status_code, 200)
-            actions = [event["action"] for event in audit_events.json()]
+            audit_payload = audit_events.json()
+            actions = [event["action"] for event in audit_payload]
             self.assertIn("invitation.created", actions)
             self.assertIn("invitation.accepted", actions)
+
+            expected_fingerprint = sha256(token.encode("utf-8")).hexdigest()[:12]
+            created_event = next(
+                event for event in audit_payload if event["action"] == "invitation.created"
+            )
+            accepted_event = next(
+                event for event in audit_payload if event["action"] == "invitation.accepted"
+            )
+            self.assertNotIn("token", created_event["metadata"])
+            self.assertNotIn("token", accepted_event["metadata"])
+            self.assertEqual(
+                created_event["metadata"]["token_fingerprint"],
+                expected_fingerprint,
+            )
+            self.assertEqual(
+                accepted_event["metadata"]["token_fingerprint"],
+                expected_fingerprint,
+            )
 
     def test_replay_requires_authenticated_actor_and_denies_cross_actor_access(self) -> None:
         with TestClient(app) as client:
