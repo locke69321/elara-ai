@@ -98,4 +98,4 @@ self.assertNotIn("token", accepted_event["metadata"])
 - Keep threat model controls in sync with implementation and tests.
 
 ## Related Issues
-No related issues documented yet.
+- See also: [cross-workspace-leakage-and-member-high-impact-delegation-authorization-20260211.md](./cross-workspace-leakage-and-member-high-impact-delegation-authorization-20260211.md)

@@ -365,6 +365,8 @@ flowchart TD
 - [x] Added minimal self-host compose stack in `deploy/docker-compose.yml`.
 - [x] Added security threat model and checklist in `docs/security/threat-model-v1.md`.
 - [x] Added outside-in tests for phase-3 flows (e2e/integration/unit), with quality gates passing (`make check`).
+- [x] Enforced workspace tenant isolation for workspace-scoped API routes and added cross-workspace authz regression tests.
+- [x] Enforced member denial for high-impact specialist delegation and added policy/runtime regression tests.
 
 ### Phase 4: V1 Polish + Docs (1 week)
 - Deliverables:
@@ -407,7 +409,7 @@ flowchart TD
 - [ ] Application remains usable on modern desktop and mobile browsers.
 - [ ] Retrieval p95 for top-k memory search <= 120ms on default index configuration.
 - [ ] 0 high-severity findings on pre-release security audit checklist.
-- [ ] Cross-workspace retrieval leakage rate is 0 in authorization test suite.
+- [x] Cross-workspace retrieval leakage rate is 0 in authorization test suite.
 
 ### Quality Gates
 - [x] Backend test suite covers auth, policy checks, memory adapters, and delegation paths.

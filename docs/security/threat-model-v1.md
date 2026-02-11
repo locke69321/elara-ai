@@ -40,8 +40,8 @@ Out of scope (v2+):
 
 2. Unsafe high-impact actions without explicit approval
 - Threat: delegated specialists execute external or tooling actions automatically.
-- Control: runtime raises `ApprovalRequiredError` and creates approval requests when `requires_approval` is true.
-- Validation: e2e flow requires explicit approval decision before re-execution succeeds.
+- Control: owners require explicit approval (`ApprovalRequiredError`) for high-impact delegation, while members are denied high-impact delegation outright.
+- Validation: e2e/integration tests assert owner approval-resume behavior and member `403` denial for high-impact requests.
 
 3. Audit log tampering
 - Threat: attackers alter action history to hide changes.
@@ -59,13 +59,20 @@ Out of scope (v2+):
 - Control: audit metadata records token fingerprints only; raw bearer invitation tokens are never logged.
 - Validation: unit tests verify duplicate acceptance is rejected.
 
+6. Cross-workspace read leakage
+- Threat: owner-role users read specialist/invitation/approval/audit data from foreign workspaces by guessing `workspace_id`.
+- Control: workspace access service enforces workspace ownership/membership checks on all workspace-scoped routes.
+- Validation: api/e2e tests assert cross-owner reads return `403` across specialists, invitations, approvals, and audit events.
+
 ## Security Checklist (Pre-Release)
 
 - [x] Authz checks enforce owner-only specialist edits
 - [x] High-impact delegation requires explicit approval
+- [x] Members are denied high-impact specialist delegation
 - [x] Approval decisions are auditable with actor and timestamp
 - [x] Invitation creation and acceptance are auditable
 - [x] Invitation audit metadata redacts bearer tokens via fingerprints
+- [x] Workspace-scoped reads enforce tenant isolation
 - [x] SQLCipher secure-mode startup guard exists and fails closed
 - [x] Lint/typecheck/no-any/coverage gates pass via `make check`
 - [ ] External tool allowlist enforcement finalized for production providers
