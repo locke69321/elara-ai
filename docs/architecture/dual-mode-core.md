@@ -1,6 +1,6 @@
-# Dual-Mode Core Architecture (Phase 1)
+# Dual-Mode Core Architecture (Phases 1-2)
 
-This document captures the implemented Phase 1 foundation for Elara's dual-mode platform.
+This document captures the implemented Phase 1 foundation and Phase 2 core behavior for Elara's dual-mode platform.
 
 ## Delivered Components
 
@@ -15,18 +15,27 @@ This document captures the implemented Phase 1 foundation for Elara's dual-mode 
 - `apps/web/src/routes/*`: dual-mode shell and route placeholders.
 - `apps/web/src/lib/server/get-workspace.ts`: server-only data boundary example.
 - `packages/contracts/*`: shared API contract types and OpenAPI seed spec.
+- `apps/api/agents/runtime.py`: primary/specialist orchestration for companion and execution flows.
+- `apps/api/agents/policy.py`: capability + role checks for delegation and specialist editing.
+- `apps/api/memory/store_*.py`: memory adapter interfaces and backend stubs.
 
 ## Execution Boundaries
 
 - FastAPI app resources are initialized and torn down in `lifespan`.
 - TanStack privileged data path is modeled with `createServerFn` in `get-workspace.ts`.
 - Event stream replay contract uses `(agent_run_id, last_seq)` via outbox replay utilities.
+- Runtime endpoints expose phase-2 behavior:
+  - `POST /workspaces/{workspace_id}/companion/messages`
+  - `POST /workspaces/{workspace_id}/execution/goals`
+  - `GET|POST /workspaces/{workspace_id}/specialists`
+  - `GET /agent-runs/{agent_run_id}/events`
 
 ## Data and Security Notes
 
 - Core schema defines immutable run events keyed by `(agent_run_id, seq)`.
 - SQLCipher startup path validates cipher availability and raises on insecure mode.
 - Envelope crypto is isolated behind `EnvelopeCipher` to support later KMS integration.
+- Policy engine defaults preserve v1 boundary: only owners can create or edit specialist definitions.
 
 ## Next Implementation Targets
 

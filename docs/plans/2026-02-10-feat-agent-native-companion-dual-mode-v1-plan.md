@@ -328,6 +328,20 @@ flowchart TD
   - Goal execution delegates to at least one specialist and returns traceable results
   - Delegation events stream to UI with deterministic ordering and retry-safe resume
 
+### Phase 2 Execution Progress (2026-02-11)
+- [x] Added runtime orchestration primitives in `apps/api/agents/runtime.py`.
+- [x] Added capability policy engine in `apps/api/agents/policy.py` (owner/member specialist-edit boundaries).
+- [x] Added memory adapter package in `apps/api/memory/store_*.py` and aligned legacy adapter imports.
+- [x] Wired API endpoints in `apps/api/main.py` for:
+  - `POST /workspaces/{workspace_id}/companion/messages`
+  - `POST /workspaces/{workspace_id}/execution/goals`
+  - `GET /workspaces/{workspace_id}/specialists`
+  - `POST /workspaces/{workspace_id}/specialists`
+  - `GET /agent-runs/{agent_run_id}/events`
+- [x] Added deterministic replay coverage from `(agent_run_id, last_seq)` in API/runtime tests.
+- [x] Upgraded UI route shells in `apps/web/src/routes/companion.tsx`, `apps/web/src/routes/execution.tsx`, and `apps/web/src/routes/agent-studio.tsx`.
+- [x] Expanded shared contracts and OpenAPI seed for Phase 2 endpoints in `packages/contracts/`.
+
 ### Phase 3: Security Hardening + Operability (1-2 weeks)
 - Deliverables:
   - `apps/api/audit/logging.py` immutable audit trail

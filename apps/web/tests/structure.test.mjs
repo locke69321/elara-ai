@@ -27,4 +27,7 @@ test('core routes are present', () => {
   assert.match(companion, /createFileRoute\('\/companion'\)/)
   assert.match(execution, /createFileRoute\('\/execution'\)/)
   assert.match(studio, /createFileRoute\('\/agent-studio'\)/)
+  assert.match(companion, /Send Companion Message/)
+  assert.match(execution, /Execute Goal/)
+  assert.match(studio, /Save Specialist Agent/)
 })

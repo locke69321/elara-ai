@@ -11,6 +11,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28,<1.0",
   "ruff>=0.9,<1.0",
 ]
 
@@ -23,6 +24,7 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
+ignore = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Elara Agent Runtime API
-  version: 0.1.0
+  version: 0.2.0
 paths:
   /health:
     get:
@@ -18,17 +18,104 @@ paths:
                   status:
                     type: string
                     enum: [ok]
-  /agent-runs/{agentRunId}/events:
+
+  /workspaces/{workspace_id}/specialists:
+    get:
+      operationId: listSpecialists
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Specialist list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpecialistAgent"
+    post:
+      operationId: upsertSpecialist
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpecialistAgent"
+      responses:
+        "201":
+          description: Specialist upserted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpecialistAgent"
+
+  /workspaces/{workspace_id}/companion/messages:
+    post:
+      operationId: companionMessage
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanionMessageRequest"
+      responses:
+        "200":
+          description: Companion response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanionMessageResponse"
+
+  /workspaces/{workspace_id}/execution/goals:
+    post:
+      operationId: executeGoal
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecutionGoalRequest"
+      responses:
+        "200":
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionGoalResponse"
+
+  /agent-runs/{agent_run_id}/events:
     get:
       operationId: replayAgentRunEvents
       parameters:
         - in: path
-          name: agentRunId
+          name: agent_run_id
           required: true
           schema:
             type: string
         - in: query
-          name: lastSeq
+          name: last_seq
           required: false
           schema:
             type: integer
@@ -42,18 +129,88 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AgentRunEvent"
+
 components:
   schemas:
+    SpecialistAgent:
+      type: object
+      required: [id, name, prompt, soul, capabilities]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        prompt:
+          type: string
+        soul:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum: [read_memory, write_memory, run_tool, delegate, external_action]
+
+    CompanionMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    CompanionMessageResponse:
+      type: object
+      required: [response, memory_hits]
+      properties:
+        response:
+          type: string
+        memory_hits:
+          type: array
+          items:
+            type: string
+
+    ExecutionGoalRequest:
+      type: object
+      required: [goal]
+      properties:
+        goal:
+          type: string
+
+    DelegatedTaskResult:
+      type: object
+      required: [specialist_id, specialist_name, task, output]
+      properties:
+        specialist_id:
+          type: string
+        specialist_name:
+          type: string
+        task:
+          type: string
+        output:
+          type: string
+
+    ExecutionGoalResponse:
+      type: object
+      required: [agent_run_id, summary, delegated_results]
+      properties:
+        agent_run_id:
+          type: string
+        summary:
+          type: string
+        delegated_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/DelegatedTaskResult"
+
     AgentRunEvent:
       type: object
-      required: [agentRunId, seq, eventType, payload]
+      required: [agent_run_id, seq, event_type, payload]
       properties:
-        agentRunId:
+        agent_run_id:
           type: string
         seq:
           type: integer
           minimum: 1
-        eventType:
+        event_type:
           type: string
         payload:
           type: object
