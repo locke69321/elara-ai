@@ -1,0 +1,10 @@
+{
+  "name": "elara-ai",
+  "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "scripts": {
+    "bootstrap": "make bootstrap",
+    "test": "make test",
+    "lint": "make lint"
+  }
+}

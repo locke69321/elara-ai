@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Env/config
+.env
+.env.*
+!.env.example
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
