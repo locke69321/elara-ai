@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 from apps.api.agents.policy import ActorContext
@@ -31,6 +33,22 @@ class WorkspaceAccessUnitTest(unittest.TestCase):
 
         access.add_workspace_member(workspace_id="ws-tenant", user_id="member-a")
         access.ensure_workspace_access(workspace_id="ws-tenant", actor=member)
+
+    def test_owner_persists_across_service_restart_with_state_db(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = os.path.join(tmp_dir, "workspace-access.sqlite3")
+            owner_a = ActorContext(user_id="owner-a", role="owner")
+            owner_b = ActorContext(user_id="owner-b", role="owner")
+
+            first = WorkspaceAccessService(database_path=db_path)
+            first.ensure_workspace_access(workspace_id="ws-tenant", actor=owner_a)
+            first.close()
+
+            second = WorkspaceAccessService(database_path=db_path)
+            second.ensure_workspace_access(workspace_id="ws-tenant", actor=owner_a)
+            with self.assertRaises(PermissionError):
+                second.ensure_workspace_access(workspace_id="ws-tenant", actor=owner_b)
+            second.close()
 
 
 if __name__ == "__main__":

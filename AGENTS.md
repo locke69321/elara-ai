@@ -62,3 +62,19 @@ Coverage policy:
 - Relevant e2e/integration/unit tests added or updated.
 - Lint, typecheck, and coverage gates all pass.
 - Documentation and contracts updated when interfaces change.
+
+## Release & Git Conventions
+
+- Branch names must match:
+  - `^(codex/)?(feat|fix|docs|chore|refactor|test|ci|build|perf|revert)\/[a-z0-9]+(?:-[a-z0-9]+)*$`
+- Commit subjects must follow Conventional Commits:
+  - `type(scope): summary`
+  - `type: summary`
+  - `type!: summary`
+- PR titles must follow the same semantic format as commit subjects.
+- Commit type to release intent:
+  - `feat` -> minor bump
+  - `fix` -> patch bump
+  - `feat!` or `fix!` (and any `!`) -> major bump semantics
+  - `docs`, `chore`, `refactor`, `test`, `ci`, `build`, `perf`, `revert` -> included in changelog context
+- Squash merges must preserve the PR title as the final commit subject.

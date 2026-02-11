@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v4
+      - name: Bootstrap dependencies
+        run: make bootstrap
+      - name: Run core quality gates
+        run: make check
+
+  coverage-all:
+    name: coverage-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v4
+      - name: Bootstrap dependencies
+        run: make bootstrap
+      - name: Run API, web, and worker coverage
+        run: make coverage-all
+
+  web-browser-contract:
+    name: web-browser-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v4
+      - name: Bootstrap dependencies
+        run: make bootstrap
+      - name: Install Playwright Chromium
+        run: pnpm --filter elara-web exec playwright install --with-deps chromium
+      - name: Run browser route contract tests
+        run: make web-browser-contract
+
+  app-authz-integration:
+    name: app-authz-integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v4
+      - name: Bootstrap dependencies
+        run: make bootstrap
+      - name: Run app authorization integration tests
+        run: make app-authz-integration
+
+  sqlite-compat:
+    name: sqlite-compat
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v4
+      - name: Bootstrap dependencies
+        run: make bootstrap
+      - name: Run SQLite compatibility checks
+        run: make sqlite-compat

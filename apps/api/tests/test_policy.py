@@ -51,6 +51,17 @@ class PolicyEngineTest(unittest.TestCase):
         self.assertFalse(decision.allowed)
         self.assertIn("high-impact", decision.reason or "")
 
+    def test_allowed_tools_are_permitted(self) -> None:
+        engine = PolicyEngine()
+        decision = engine.can_use_tool(tool_name="search_docs")
+        self.assertTrue(decision.allowed)
+
+    def test_non_allowlisted_tool_is_rejected(self) -> None:
+        engine = PolicyEngine()
+        decision = engine.can_use_tool(tool_name="shell_exec")
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "tool is not in allowlist")
+
 
 if __name__ == "__main__":
     unittest.main()

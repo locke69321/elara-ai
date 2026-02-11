@@ -1,0 +1,241 @@
+:root {
+  --bg-0: #0b0f14;
+  --bg-1: #121922;
+  --surface: #161d27;
+  --border: #2a3442;
+  --text: #e6edf5;
+  --muted: #9aa7b7;
+  --accent: #22d3ee;
+  --accent-alt: #60a5fa;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: 'Public Sans', sans-serif;
+  background: linear-gradient(160deg, var(--bg-0), var(--bg-1));
+}
+
+.app-shell {
+  max-width: 1180px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.brand-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.app-header h1 {
+  margin: 4px 0 0;
+  font-family: 'Fraunces', serif;
+}
+
+.workspace-panel {
+  text-align: right;
+}
+
+.workspace-name {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.runtime-status {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.runtime-status.online {
+  color: var(--accent);
+}
+
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.mode-tab {
+  text-decoration: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+}
+
+.mode-tab.is-active {
+  color: var(--text);
+  border-color: var(--accent-alt);
+}
+
+.route-canvas {
+  display: grid;
+  gap: 14px;
+}
+
+.route-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+.panel {
+  background: color-mix(in srgb, var(--surface) 94%, #ffffff 6%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.panel label {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.panel input,
+.panel textarea,
+.panel button {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #10161f;
+  color: var(--text);
+  padding: 10px;
+}
+
+.panel button {
+  margin-top: 10px;
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--accent-alt) 70%, var(--border) 30%);
+}
+
+.memory-chip {
+  display: inline-flex;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+.timeline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-event {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.timeline-event:last-child {
+  border-bottom: 0;
+}
+
+.event-seq {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.event-type {
+  margin: 0;
+  color: var(--accent-alt);
+}
+
+.event-details {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.approval-banner {
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid;
+}
+
+.approval-banner.required {
+  border-color: color-mix(in srgb, var(--warn) 65%, var(--border) 35%);
+}
+
+.approval-banner.approved {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border) 45%);
+}
+
+.approval-id {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--muted);
+}
+
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.member-constraint {
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.replay-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 860px) {
+  .route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workspace-panel {
+    text-align: left;
+  }
+}

@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test ./tests/*.mjs",
+    "test": "node --test ./tests/structure.test.mjs ./tests/route-states.test.mjs ./tests/executed-routes.test.mjs ./tests/coverage-gate.test.mjs",
+    "test:browser-contract": "playwright test --config=playwright.config.ts",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "coverage": "node ./scripts/coverage_gate.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@types/node": "^24.9.1",
     "@eslint/js": "^9.39.1",
     "eslint": "^9.39.1",

@@ -75,8 +75,8 @@ Out of scope (v2+):
 - [x] Workspace-scoped reads enforce tenant isolation
 - [x] SQLCipher secure-mode startup guard exists and fails closed
 - [x] Lint/typecheck/no-any/coverage gates pass via `make check`
-- [ ] External tool allowlist enforcement finalized for production providers
-- [ ] Key rotation runbook finalized for operator docs
+- [x] External tool allowlist enforcement finalized for production providers
+- [x] Key rotation runbook finalized for operator docs
 
 ## Residual Risks
 
@@ -84,9 +84,15 @@ Out of scope (v2+):
 - Approval semantics are explicit but not yet bound to a durable identity provider.
 - Audit chain is tamper-evident in-process; append-only external storage is recommended for production.
 
+## Implementation Evidence
+
+- Tool allowlist gate: `apps/api/agents/policy.py` and `apps/api/tests/test_policy.py`
+- Operator rotation guide: `docs/operations/key-rotation-runbook.md`
+- SQLite + vector compatibility checks: `docs/security/sqlite-encrypted-vector-compatibility.md`
+- App-layer workspace isolation checks: `apps/api/tests/integration/test_app_authz_integration.py`
+
 ## Next Hardening Steps
 
-1. Persist approvals, invitations, and audit events in encrypted storage.
-2. Add signed audit exports and off-host retention policy.
-3. Integrate session-based auth and CSRF protections for browser workflows.
-4. Introduce key rotation and KMS-backed envelope key support.
+1. Add signed audit exports and off-host retention policy.
+2. Integrate session-based auth and CSRF protections for browser workflows.
+3. Introduce KMS-backed envelope key support.

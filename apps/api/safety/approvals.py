@@ -1,9 +1,11 @@
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
 from apps.api.agents.policy import Capability
+from apps.api.db.state import connect_state_db
 
 ApprovalStatus = Literal["pending", "approved", "denied"]
 ApprovalDecision = Literal["approved", "denied"]
@@ -30,8 +32,41 @@ class ApprovalRequiredError(PermissionError):
 
 
 class ApprovalService:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        database_path: str | None = None,
+        connection: sqlite3.Connection | None = None,
+    ) -> None:
+        self._connection = connection
+        self._owns_connection = False
+        if self._connection is None and database_path is not None:
+            self._connection = connect_state_db(database_path)
+            self._owns_connection = True
         self._requests: dict[str, ApprovalRequest] = {}
+
+    def close(self) -> None:
+        if self._connection is None or not self._owns_connection:
+            return
+        self._connection.close()
+        self._connection = None
+
+    def __del__(self) -> None:
+        self.close()
+
+    def _from_row(self, row: tuple[object, ...]) -> ApprovalRequest:
+        return ApprovalRequest(
+            id=str(row[0]),
+            workspace_id=str(row[1]),
+            actor_id=str(row[2]),
+            capability=str(row[3]),
+            action=str(row[4]),
+            reason=str(row[5]),
+            status=str(row[6]),
+            created_at=str(row[7]),
+            decided_at=None if row[8] is None else str(row[8]),
+            decided_by=None if row[9] is None else str(row[9]),
+        )
 
     def create_request(
         self,
@@ -54,7 +89,30 @@ class ApprovalService:
             decided_at=None,
             decided_by=None,
         )
-        self._requests[request.id] = request
+        if self._connection is None:
+            self._requests[request.id] = request
+        else:
+            self._connection.execute(
+                """
+                insert into approval_request_record (
+                  id, workspace_id, actor_id, capability, action, reason, status,
+                  created_at, decided_at, decided_by
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    request.id,
+                    request.workspace_id,
+                    request.actor_id,
+                    request.capability,
+                    request.action,
+                    request.reason,
+                    request.status,
+                    request.created_at,
+                    request.decided_at,
+                    request.decided_by,
+                ),
+            )
+            self._connection.commit()
         return request
 
     def decide_request(
@@ -64,7 +122,7 @@ class ApprovalService:
         approver_id: str,
         decision: ApprovalDecision,
     ) -> ApprovalRequest:
-        request = self._requests.get(approval_id)
+        request = self.get_request(approval_id=approval_id)
         if request is None:
             raise ValueError("approval request not found")
         if request.status != "pending":
@@ -84,10 +142,35 @@ class ApprovalService:
             decided_at=datetime.now(timezone.utc).isoformat(),
             decided_by=approver_id,
         )
-        self._requests[approval_id] = decided
+        if self._connection is None:
+            self._requests[approval_id] = decided
+        else:
+            self._connection.execute(
+                """
+                update approval_request_record
+                set status = ?, decided_at = ?, decided_by = ?
+                where id = ?
+                """,
+                (decided.status, decided.decided_at, decided.decided_by, approval_id),
+            )
+            self._connection.commit()
         return decided
 
     def get_request(self, *, approval_id: str) -> ApprovalRequest | None:
+        if self._connection is not None:
+            cursor = self._connection.execute(
+                """
+                select id, workspace_id, actor_id, capability, action, reason, status,
+                       created_at, decided_at, decided_by
+                from approval_request_record
+                where id = ?
+                """,
+                (approval_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return self._from_row(row)
         return self._requests.get(approval_id)
 
     def list_requests(
@@ -96,6 +179,32 @@ class ApprovalService:
         workspace_id: str,
         status: ApprovalStatus | None = None,
     ) -> list[ApprovalRequest]:
+        if self._connection is not None:
+            if status is None:
+                cursor = self._connection.execute(
+                    """
+                    select id, workspace_id, actor_id, capability, action, reason, status,
+                           created_at, decided_at, decided_by
+                    from approval_request_record
+                    where workspace_id = ?
+                    order by created_at asc
+                    """,
+                    (workspace_id,),
+                )
+            else:
+                cursor = self._connection.execute(
+                    """
+                    select id, workspace_id, actor_id, capability, action, reason, status,
+                           created_at, decided_at, decided_by
+                    from approval_request_record
+                    where workspace_id = ? and status = ?
+                    order by created_at asc
+                    """,
+                    (workspace_id, status),
+                )
+            rows = cursor.fetchall()
+            return [self._from_row(row) for row in rows]
+
         requests = [
             request
             for request in self._requests.values()
@@ -114,7 +223,7 @@ class ApprovalService:
         capability: Capability,
         action: str,
     ) -> bool:
-        request = self._requests.get(approval_id)
+        request = self.get_request(approval_id=approval_id)
         if request is None:
             return False
 

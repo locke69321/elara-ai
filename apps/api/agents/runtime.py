@@ -64,6 +64,11 @@ class AgentRuntime:
         self._run_workspace_by_id[agent_run_id] = workspace_id
         actors = self._run_actor_ids_by_id.setdefault(agent_run_id, set())
         actors.add(actor_id)
+        self._outbox.register_run_access(
+            agent_run_id=agent_run_id,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+        )
 
     def list_specialists(self, *, workspace_id: str) -> list[SpecialistAgent]:
         specialists = self._specialists_by_workspace.get(workspace_id, {})
@@ -330,8 +335,16 @@ class AgentRuntime:
         last_seq: int = 0,
     ) -> list[dict[str, object]]:
         authorized_actor_ids = self._run_actor_ids_by_id.get(agent_run_id)
-        if authorized_actor_ids is not None and actor.user_id not in authorized_actor_ids:
-            raise PermissionError("actor is not authorized to replay this run")
+        if authorized_actor_ids is not None:
+            if actor.user_id not in authorized_actor_ids:
+                raise PermissionError("actor is not authorized to replay this run")
+        else:
+            persisted_authorization = self._outbox.is_run_access_allowed(
+                agent_run_id=agent_run_id,
+                actor_id=actor.user_id,
+            )
+            if persisted_authorization is not True:
+                raise PermissionError("actor is not authorized to replay this run")
 
         events = self._outbox.replay(agent_run_id=agent_run_id, last_seq=last_seq)
         return [

@@ -25,6 +25,8 @@ class MemoryStore(Protocol):
         agent_id: str,
         memory_id: str,
         content: str,
+        embedding: list[float] | None = None,
+        embedding_model: str = "text-embedding-3-small",
     ) -> MemoryItem: ...
 
     async def search(
