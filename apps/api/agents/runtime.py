@@ -57,6 +57,13 @@ class AgentRuntime:
         self._approvals = approval_service
         self._audit = audit_log
         self._specialists_by_workspace: dict[str, dict[str, SpecialistAgent]] = {}
+        self._run_workspace_by_id: dict[str, str] = {}
+        self._run_actor_ids_by_id: dict[str, set[str]] = {}
+
+    def _grant_run_access(self, *, agent_run_id: str, workspace_id: str, actor_id: str) -> None:
+        self._run_workspace_by_id[agent_run_id] = workspace_id
+        actors = self._run_actor_ids_by_id.setdefault(agent_run_id, set())
+        actors.add(actor_id)
 
     def list_specialists(self, *, workspace_id: str) -> list[SpecialistAgent]:
         specialists = self._specialists_by_workspace.get(workspace_id, {})
@@ -119,7 +126,12 @@ class AgentRuntime:
         self._outbox.append_event(
             agent_run_id=f"companion-{workspace_id}",
             event_type="companion.message",
-            payload={"actor_id": actor_id, "memory_hits": memory_hits},
+            payload={"memory_hit_count": len(memory_hits)},
+        )
+        self._grant_run_access(
+            agent_run_id=f"companion-{workspace_id}",
+            workspace_id=workspace_id,
+            actor_id=actor_id,
         )
         self._audit.append_event(
             workspace_id=workspace_id,
@@ -207,6 +219,11 @@ class AgentRuntime:
             )
 
         agent_run_id = f"run-{uuid4()}"
+        self._grant_run_access(
+            agent_run_id=agent_run_id,
+            workspace_id=workspace_id,
+            actor_id=actor.user_id,
+        )
         self._outbox.append_event(
             agent_run_id=agent_run_id,
             event_type="run.started",
@@ -282,7 +299,17 @@ class AgentRuntime:
             delegated_results=delegated_results,
         )
 
-    def replay_events(self, *, agent_run_id: str, last_seq: int = 0) -> list[dict[str, object]]:
+    def replay_events(
+        self,
+        *,
+        agent_run_id: str,
+        actor: ActorContext,
+        last_seq: int = 0,
+    ) -> list[dict[str, object]]:
+        authorized_actor_ids = self._run_actor_ids_by_id.get(agent_run_id)
+        if authorized_actor_ids is not None and actor.user_id not in authorized_actor_ids:
+            raise PermissionError("actor is not authorized to replay this run")
+
         events = self._outbox.replay(agent_run_id=agent_run_id, last_seq=last_seq)
         return [
             {

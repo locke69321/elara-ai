@@ -52,7 +52,11 @@ class RuntimeIntegrationTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(len(execution.delegated_results), 1)
 
-        replay_all = runtime.replay_events(agent_run_id=execution.agent_run_id, last_seq=0)
+        replay_all = runtime.replay_events(
+            agent_run_id=execution.agent_run_id,
+            actor=owner,
+            last_seq=0,
+        )
         self.assertEqual(replay_all[0]["event_type"], "run.started")
         self.assertEqual(replay_all[-1]["event_type"], "run.completed")
 
@@ -102,6 +106,39 @@ class RuntimeIntegrationTest(unittest.IsolatedAsyncioTestCase):
             approved_request_ids={approval_id},
         )
         self.assertEqual(len(result.delegated_results), 1)
+
+    async def test_replay_events_denies_cross_actor_access(self) -> None:
+        runtime = AgentRuntime(
+            memory_store=SqliteMemoryStore(),
+            policy_engine=PolicyEngine(),
+            outbox=AgentRunEventOutbox(),
+            completion_client=StubCompletionClient(),
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
+        )
+
+        owner = ActorContext(user_id="owner-int", role="owner")
+        intruder = ActorContext(user_id="intruder-int", role="member")
+
+        await runtime.companion_message(
+            workspace_id="ws-int",
+            actor_id=owner.user_id,
+            message="private memory",
+        )
+
+        allowed_events = runtime.replay_events(
+            agent_run_id="companion-ws-int",
+            actor=owner,
+            last_seq=0,
+        )
+        self.assertGreaterEqual(len(allowed_events), 1)
+
+        with self.assertRaises(PermissionError):
+            runtime.replay_events(
+                agent_run_id="companion-ws-int",
+                actor=intruder,
+                last_seq=0,
+            )
 
 
 if __name__ == "__main__":

@@ -70,7 +70,11 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(result.delegated_results), 1)
         self.assertIn("delegated", result.summary.lower())
 
-        replay = runtime.replay_events(agent_run_id=result.agent_run_id, last_seq=0)
+        replay = runtime.replay_events(
+            agent_run_id=result.agent_run_id,
+            actor=actor,
+            last_seq=0,
+        )
         self.assertEqual(replay[0]["event_type"], "run.started")
         self.assertEqual(replay[-1]["event_type"], "run.completed")
 

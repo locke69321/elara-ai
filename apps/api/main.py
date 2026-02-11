@@ -229,6 +229,25 @@ def get_actor(
     return ActorContext(user_id=x_user_id, role=cast(Role, x_user_role))
 
 
+def get_authenticated_actor(
+    x_user_id: str | None = Header(default=None),
+    x_user_role: str | None = Header(default=None),
+) -> ActorContext:
+    if x_user_id is None or x_user_role is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="x-user-id and x-user-role headers are required",
+        )
+
+    if x_user_role not in {"owner", "member"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="x-user-role must be owner or member",
+        )
+
+    return ActorContext(user_id=x_user_id, role=cast(Role, x_user_role))
+
+
 @app.get("/workspaces/{workspace_id}/specialists", response_model=list[SpecialistResponse])
 async def list_specialists(
     workspace_id: str,
@@ -352,6 +371,7 @@ async def replay_events(
     agent_run_id: str,
     last_seq: int = 0,
     runtime: AgentRuntime = Depends(get_runtime),
+    actor: ActorContext = Depends(get_authenticated_actor),
 ) -> list[dict[str, object]]:
     if last_seq < 0:
         raise HTTPException(
@@ -359,7 +379,14 @@ async def replay_events(
             detail="last_seq must be >= 0",
         )
 
-    return runtime.replay_events(agent_run_id=agent_run_id, last_seq=last_seq)
+    try:
+        return runtime.replay_events(
+            agent_run_id=agent_run_id,
+            actor=actor,
+            last_seq=last_seq,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
 
 @app.post(

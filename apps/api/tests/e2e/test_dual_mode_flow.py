@@ -41,6 +41,7 @@ class DualModeFlowE2ETest(unittest.TestCase):
             replay = client.get(
                 f"/agent-runs/{execution_payload['agent_run_id']}/events",
                 params={"last_seq": 1},
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
             )
             self.assertEqual(replay.status_code, 200)
             self.assertGreaterEqual(len(replay.json()), 1)
@@ -125,6 +126,31 @@ class DualModeFlowE2ETest(unittest.TestCase):
             actions = [event["action"] for event in audit_events.json()]
             self.assertIn("invitation.created", actions)
             self.assertIn("invitation.accepted", actions)
+
+    def test_replay_requires_authenticated_actor_and_denies_cross_actor_access(self) -> None:
+        with TestClient(app) as client:
+            companion_reply = client.post(
+                "/workspaces/ws-e2e-replay/companion/messages",
+                json={"message": "remember private details"},
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(companion_reply.status_code, 200)
+
+            unauthenticated_replay = client.get("/agent-runs/companion-ws-e2e-replay/events")
+            self.assertEqual(unauthenticated_replay.status_code, 401)
+
+            cross_actor_replay = client.get(
+                "/agent-runs/companion-ws-e2e-replay/events",
+                headers={"x-user-id": "intruder-e2e", "x-user-role": "member"},
+            )
+            self.assertEqual(cross_actor_replay.status_code, 403)
+
+            owner_replay = client.get(
+                "/agent-runs/companion-ws-e2e-replay/events",
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(owner_replay.status_code, 200)
+            self.assertGreaterEqual(len(owner_replay.json()), 1)
 
 
 if __name__ == "__main__":

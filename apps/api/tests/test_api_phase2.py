@@ -55,6 +55,7 @@ class Phase2ApiTest(unittest.TestCase):
             replay_response = client.get(
                 f"/agent-runs/{payload['agent_run_id']}/events",
                 params={"last_seq": 1},
+                headers={"x-user-id": "owner-1", "x-user-role": "owner"},
             )
             self.assertEqual(replay_response.status_code, 200)
             replay_payload = replay_response.json()
@@ -97,7 +98,11 @@ class Phase2ApiTest(unittest.TestCase):
 
     def test_event_replay_negative_last_seq_returns_400(self) -> None:
         with TestClient(app) as client:
-            response = client.get("/agent-runs/missing/events", params={"last_seq": -1})
+            response = client.get(
+                "/agent-runs/missing/events",
+                params={"last_seq": -1},
+                headers={"x-user-id": "owner-1", "x-user-role": "owner"},
+            )
             self.assertEqual(response.status_code, 400)
 
     def test_owner_can_create_and_list_invitations(self) -> None:
