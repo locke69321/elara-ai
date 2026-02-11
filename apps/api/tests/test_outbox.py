@@ -32,6 +32,17 @@ class AgentRunEventOutboxTest(unittest.TestCase):
 
         self.assertEqual([event.seq for event in replayed], [2, 3])
 
+    def test_drain_outbox_respects_max_items(self) -> None:
+        outbox = AgentRunEventOutbox()
+        outbox.append_event(agent_run_id="run-3", event_type="a", payload={})
+        outbox.append_event(agent_run_id="run-3", event_type="b", payload={})
+
+        drained_once = outbox.drain_outbox(max_items=1)
+        drained_twice = outbox.drain_outbox(max_items=10)
+
+        self.assertEqual(len(drained_once), 1)
+        self.assertEqual(len(drained_twice), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

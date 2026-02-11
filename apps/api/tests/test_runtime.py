@@ -1,6 +1,12 @@
 import unittest
 
-from apps.api.agents import ActorContext, AgentRuntime, PolicyEngine, SpecialistAgent
+from apps.api.agents import (
+    ActorContext,
+    AgentRuntime,
+    PolicyEngine,
+    SpecialistAgent,
+    StubCompletionClient,
+)
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
 
@@ -11,6 +17,7 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
             memory_store=SqliteMemoryStore(),
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
+            completion_client=StubCompletionClient(),
         )
 
         first = await runtime.companion_message(
@@ -32,6 +39,7 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
             memory_store=SqliteMemoryStore(),
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
+            completion_client=StubCompletionClient(),
         )
         actor = ActorContext(user_id="owner-1", role="owner")
 
@@ -59,6 +67,22 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
         replay = runtime.replay_events(agent_run_id=result.agent_run_id, last_seq=0)
         self.assertEqual(replay[0]["event_type"], "run.started")
         self.assertEqual(replay[-1]["event_type"], "run.completed")
+
+    async def test_execute_goal_raises_when_no_eligible_specialist_exists(self) -> None:
+        runtime = AgentRuntime(
+            memory_store=SqliteMemoryStore(),
+            policy_engine=PolicyEngine(),
+            outbox=AgentRunEventOutbox(),
+            completion_client=StubCompletionClient(),
+        )
+        actor = ActorContext(user_id="owner-1", role="owner")
+
+        with self.assertRaises(ValueError):
+            await runtime.execute_goal(
+                workspace_id="ws-empty",
+                actor=actor,
+                goal="No specialists available",
+            )
 
 
 if __name__ == "__main__":

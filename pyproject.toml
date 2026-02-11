@@ -11,7 +11,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "coverage>=7.10,<8.0",
   "httpx>=0.28,<1.0",
+  "mypy>=1.18,<2.0",
   "ruff>=0.9,<1.0",
 ]
 
@@ -29,3 +31,35 @@ ignore = ["B008"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+explicit_package_bases = true
+files = [
+  "apps/api/main.py",
+  "apps/api/agents",
+  "apps/api/db",
+  "apps/api/events",
+  "apps/api/memory",
+  "apps/api/security",
+  "apps/worker",
+]
+
+[tool.coverage.run]
+source = ["apps/api"]
+omit = [
+  "*/tests/*",
+  "*/__init__.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 90

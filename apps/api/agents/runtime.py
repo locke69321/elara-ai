@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from uuid import uuid4
 
+from apps.api.agents.completion import CompletionClient
 from apps.api.agents.policy import ActorContext, Capability, PolicyEngine
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory.store_base import MemoryStore
@@ -43,10 +44,12 @@ class AgentRuntime:
         memory_store: MemoryStore,
         policy_engine: PolicyEngine,
         outbox: AgentRunEventOutbox,
+        completion_client: CompletionClient,
     ) -> None:
         self._memory_store = memory_store
         self._policy = policy_engine
         self._outbox = outbox
+        self._completion_client = completion_client
         self._specialists_by_workspace: dict[str, dict[str, SpecialistAgent]] = {}
 
     def list_specialists(self, *, workspace_id: str) -> list[SpecialistAgent]:
@@ -91,10 +94,11 @@ class AgentRuntime:
         )
         memory_hits = [match.memory_id for match in matches]
 
-        response = (
-            f"I hear you, {actor_id}. "
-            f"I have {len(memory_hits)} related memory hit(s) while keeping continuity."
+        completion = await self._completion_client.complete(
+            system_prompt="companion_primary",
+            user_input=message,
         )
+        response = f"I hear you, {actor_id}. {completion} ({len(memory_hits)} memory hit(s))."
 
         self._outbox.append_event(
             agent_run_id=f"companion-{workspace_id}",
@@ -140,9 +144,9 @@ class AgentRuntime:
                 payload={"specialist_id": specialist.id, "task": task},
             )
 
-            output = (
-                f"{specialist.name} processed the task with soul profile "
-                f"'{specialist.soul}'."
+            output = await self._completion_client.complete(
+                system_prompt=f"{specialist.prompt} | soul={specialist.soul}",
+                user_input=task,
             )
             delegated = DelegatedTaskResult(
                 specialist_id=specialist.id,

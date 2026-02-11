@@ -6,6 +6,12 @@ from apps.api.main import app
 
 
 class Phase2ApiTest(unittest.TestCase):
+    def test_health_route_returns_ok(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/health")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"status": "ok"})
+
     def test_member_cannot_create_specialist(self) -> None:
         with TestClient(app) as client:
             response = client.post(
@@ -55,6 +61,10 @@ class Phase2ApiTest(unittest.TestCase):
             self.assertGreaterEqual(len(replay_payload), 1)
             self.assertEqual(replay_payload[0]["seq"], 2)
 
+            listed = client.get("/workspaces/ws-2/specialists")
+            self.assertEqual(listed.status_code, 200)
+            self.assertEqual(len(listed.json()), 1)
+
     def test_companion_message_round_trip(self) -> None:
         with TestClient(app) as client:
             response = client.post(
@@ -66,6 +76,29 @@ class Phase2ApiTest(unittest.TestCase):
             payload = response.json()
             self.assertIn("response", payload)
             self.assertIn("memory_hits", payload)
+
+    def test_invalid_role_header_returns_400(self) -> None:
+        with TestClient(app) as client:
+            response = client.post(
+                "/workspaces/ws-4/companion/messages",
+                json={"message": "hello"},
+                headers={"x-user-id": "u1", "x-user-role": "invalid"},
+            )
+            self.assertEqual(response.status_code, 400)
+
+    def test_execute_goal_without_specialists_returns_400(self) -> None:
+        with TestClient(app) as client:
+            response = client.post(
+                "/workspaces/ws-5/execution/goals",
+                json={"goal": "goal with no specialists"},
+                headers={"x-user-id": "owner-5", "x-user-role": "owner"},
+            )
+            self.assertEqual(response.status_code, 400)
+
+    def test_event_replay_negative_last_seq_returns_400(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/agent-runs/missing/events", params={"last_seq": -1})
+            self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

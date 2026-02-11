@@ -1,11 +1,8 @@
 import json
 from dataclasses import dataclass
+from typing import cast
 
-try:
-    from cryptography.fernet import Fernet, InvalidToken
-except ImportError:  # pragma: no cover - dependency availability is runtime-specific
-    Fernet = None  # type: ignore[assignment]
-    InvalidToken = Exception  # type: ignore[assignment]
+from cryptography.fernet import Fernet, InvalidToken
 
 
 @dataclass(frozen=True)
@@ -18,16 +15,11 @@ class EnvelopeCipher:
     """Field-level envelope encryption for sensitive payloads."""
 
     def __init__(self, *, key_id: str, key_material: str) -> None:
-        if Fernet is None:
-            raise RuntimeError("cryptography is required for EnvelopeCipher")
-
         self.key_id = key_id
         self._fernet = Fernet(key_material.encode("utf-8"))
 
     @staticmethod
     def generate_data_key() -> str:
-        if Fernet is None:
-            raise RuntimeError("cryptography is required for key generation")
         return Fernet.generate_key().decode("utf-8")
 
     def encrypt_payload(self, payload: dict[str, object]) -> EncryptedEnvelope:
@@ -44,4 +36,7 @@ class EnvelopeCipher:
         except InvalidToken as exc:
             raise ValueError("unable to decrypt payload") from exc
 
-        return json.loads(decrypted)
+        decoded = json.loads(decrypted)
+        if not isinstance(decoded, dict):
+            raise ValueError("encrypted payload must decode to a JSON object")
+        return cast(dict[str, object], decoded)

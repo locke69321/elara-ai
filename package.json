@@ -5,6 +5,9 @@
   "scripts": {
     "bootstrap": "make bootstrap",
     "test": "make test",
-    "lint": "make lint"
+    "lint": "make lint",
+    "typecheck": "make typecheck",
+    "coverage": "make coverage",
+    "check": "make check"
   }
 }

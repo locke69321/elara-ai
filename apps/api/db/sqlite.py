@@ -1,7 +1,15 @@
-from typing import Any, Callable
+from typing import Callable, Protocol
 
 
-def validate_sqlcipher_connection(connection: Any) -> None:
+class SqlCipherResult(Protocol):
+    def fetchone(self) -> tuple[str] | None: ...
+
+
+class SqlCipherConnection(Protocol):
+    def execute(self, query: str, params: tuple[str] | None = None) -> SqlCipherResult: ...
+
+
+def validate_sqlcipher_connection(connection: SqlCipherConnection) -> None:
     cipher_version = connection.execute("PRAGMA cipher_version;").fetchone()
     if not cipher_version or not cipher_version[0]:
         raise RuntimeError(
@@ -10,10 +18,10 @@ def validate_sqlcipher_connection(connection: Any) -> None:
 
 
 def connect_sqlcipher(
-    connect_fn: Callable[[str], Any],
+    connect_fn: Callable[[str], SqlCipherConnection],
     database_url: str,
     db_key: str,
-) -> Any:
+) -> SqlCipherConnection:
     connection = connect_fn(database_url)
     connection.execute("PRAGMA key = ?;", (db_key,))
     connection.execute("PRAGMA foreign_keys = ON;")

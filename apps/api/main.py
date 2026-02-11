@@ -1,10 +1,17 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from apps.api.agents import ActorContext, AgentRuntime, PolicyEngine, SpecialistAgent
+from apps.api.agents import (
+    ActorContext,
+    AgentRuntime,
+    PolicyEngine,
+    SpecialistAgent,
+    StubCompletionClient,
+)
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
 
@@ -61,14 +68,16 @@ class ExecutionGoalResponse(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     memory_store = SqliteMemoryStore()
     policy_engine = PolicyEngine()
     outbox = AgentRunEventOutbox()
+    completion_client = StubCompletionClient()
     app.state.runtime = AgentRuntime(
         memory_store=memory_store,
         policy_engine=policy_engine,
         outbox=outbox,
+        completion_client=completion_client,
     )
     yield
     del app.state.runtime
@@ -93,7 +102,7 @@ def get_runtime(request: Request) -> AgentRuntime:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="runtime unavailable",
         )
-    return runtime
+    return cast(AgentRuntime, runtime)
 
 
 def get_actor(
@@ -106,7 +115,7 @@ def get_actor(
             detail="x-user-role must be owner or member",
         )
 
-    return ActorContext(user_id=x_user_id, role=x_user_role)  # type: ignore[arg-type]
+    return ActorContext(user_id=x_user_id, role=cast(Role, x_user_role))
 
 
 @app.get("/workspaces/{workspace_id}/specialists", response_model=list[SpecialistResponse])

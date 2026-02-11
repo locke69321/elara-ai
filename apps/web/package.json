@@ -3,6 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test ./tests/*.mjs"
+    "test": "node --test ./tests/*.mjs",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.4.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4"
   }
 }

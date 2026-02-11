@@ -28,8 +28,20 @@ pnpm install
 
 ```bash
 make test      # API + web tests
-make lint      # API lint checks (ruff)
+make lint      # API + web lint checks
+make typecheck # Python + TypeScript type checks
+make no-any    # fail on explicit `Any` usage in Python source
+make coverage  # API coverage gate (must be >= 90%)
+make check     # lint + typecheck + coverage
 make dev-api   # run FastAPI on http://localhost:8000
+```
+
+Outside-in API test layers:
+
+```bash
+make api-test-e2e
+make api-test-integration
+make api-test-unit
 ```
 
 ## Project Structure

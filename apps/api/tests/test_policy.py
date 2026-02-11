@@ -1,6 +1,7 @@
 import unittest
+from typing import cast
 
-from apps.api.agents.policy import ActorContext, PolicyEngine
+from apps.api.agents.policy import ActorContext, PolicyEngine, Role
 
 
 class PolicyEngineTest(unittest.TestCase):
@@ -28,6 +29,15 @@ class PolicyEngineTest(unittest.TestCase):
         decision = engine.can_delegate(actor=actor, capabilities={"write_memory"})
 
         self.assertFalse(decision.allowed)
+
+    def test_delegate_rejects_unsupported_role(self) -> None:
+        engine = PolicyEngine()
+        actor = ActorContext(user_id="u1", role=cast(Role, "auditor"))
+
+        decision = engine.can_delegate(actor=actor, capabilities={"delegate"})
+
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "unsupported actor role")
 
 
 if __name__ == "__main__":
