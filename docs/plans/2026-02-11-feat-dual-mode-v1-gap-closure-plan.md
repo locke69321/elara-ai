@@ -160,11 +160,11 @@ Adopt a **"Field Console (Night Shift)"** visual language: editorial typography 
 
 - Add GitHub Actions workflow(s) under `.github/workflows/` to run required gates on pull requests targeting `main`.
 - Define required status checks for merge:
-  - `ci / check` (`make check`)
-  - `ci / coverage-all` (`make coverage-all`, includes API + web + worker)
-  - `ci / web-browser-contract` (`make web-browser-contract`)
-  - `ci / app-authz-integration` (app authz integration suite)
-  - `ci / sqlite-compat` (SQLCipher + vector compatibility verification)
+  - `check` (`make check`)
+  - `coverage-all` (`make coverage-all`, includes API + web + worker)
+  - `web-browser-contract` (`make web-browser-contract`)
+  - `app-authz-integration` (app authz integration suite)
+  - `sqlite-compat` (SQLCipher + vector compatibility verification)
 - Configure branch protection on `main` as final merge control:
   - Require pull request before merge
   - Require all required status checks to pass
@@ -287,14 +287,14 @@ Adopt a **"Field Console (Night Shift)"** visual language: editorial typography 
 ### Branch Protection Verification (2026-02-11)
 - Verified by: Codex via `gh api repos/locke69321/elara-ai/branches/main/protection`.
 - Required checks include:
-  - `ci / check`
-  - `ci / coverage-all`
-  - `ci / web-browser-contract`
-  - `ci / app-authz-integration`
-  - `ci / sqlite-compat`
-  - `ci / semantic-pr-title`
-  - `ci / commitlint`
-  - `ci / branch-name`
+  - `check`
+  - `coverage-all`
+  - `web-browser-contract`
+  - `app-authz-integration`
+  - `sqlite-compat`
+  - `semantic-pr-title`
+  - `commitlint`
+  - `branch-name`
 - Enforcement state:
   - `required_status_checks.strict = true`
   - `required_pull_request_reviews.dismiss_stale_reviews = true`
@@ -362,9 +362,9 @@ These branch/governance changes are now tracked in this canonical plan instead o
 - Commit subject format:
   - Conventional Commits (`feat:`, `fix:`, `docs:`, etc. with optional scope and `!`)
 - Required CI checks in branch protection:
-  - `ci / semantic-pr-title`
-  - `ci / commitlint`
-  - `ci / branch-name`
+  - `semantic-pr-title`
+  - `commitlint`
+  - `branch-name`
   - existing quality checks from `docs/security/branch-protection-main.md`
 - Merge policy requirements:
   - pull request required before merge

@@ -9,14 +9,14 @@ Configure branch protection in GitHub repository settings for `main`:
 - Dismiss stale pull request approvals when new commits are pushed.
 - Block direct pushes to `main`.
 - Require these status checks:
-  - `ci / check`
-  - `ci / coverage-all`
-  - `ci / web-browser-contract`
-  - `ci / app-authz-integration`
-  - `ci / sqlite-compat`
-  - `ci / semantic-pr-title`
-  - `ci / commitlint`
-  - `ci / branch-name`
+  - `check`
+  - `coverage-all`
+  - `web-browser-contract`
+  - `app-authz-integration`
+  - `sqlite-compat`
+  - `semantic-pr-title`
+  - `commitlint`
+  - `branch-name`
 - Enable "Default to PR title for squash merge commits" in repository settings.
 - Release automation check (post-merge, not a PR required check):
   - `release-please / release-please`
@@ -30,3 +30,4 @@ Configure branch protection in GitHub repository settings for `main`:
 ## Notes
 
 Branch protection enforcement happens in GitHub settings, not in repository code.
+Use exact GitHub Actions check-run names above (not legacy `ci / ...` status-context aliases).
