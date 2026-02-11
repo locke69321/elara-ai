@@ -355,6 +355,17 @@ flowchart TD
   - Security review checklist passes for authn/authz, input validation, and tool-policy enforcement
   - SQLCipher activation check is enforced at startup for SQLite deployments
 
+### Phase 3 Execution Progress (2026-02-11)
+- [x] Added immutable audit trail service in `apps/api/audit/logging.py` with hash-chain integrity verification.
+- [x] Added owner-driven invitation workflow in `apps/api/auth/invitations.py`.
+- [x] Added approval workflow service in `apps/api/safety/approvals.py`.
+- [x] Enforced high-impact action confirmation in runtime (`apps/api/agents/runtime.py`) via required approvals.
+- [x] Wired SQLCipher secure startup guard in `apps/api/db/sqlite.py` and API lifespan initialization (`apps/api/main.py`).
+- [x] Added phase-3 API routes for invitations, approvals, and audit events in `apps/api/main.py`.
+- [x] Added minimal self-host compose stack in `deploy/docker-compose.yml`.
+- [x] Added security threat model and checklist in `docs/security/threat-model-v1.md`.
+- [x] Added outside-in tests for phase-3 flows (e2e/integration/unit), with quality gates passing (`make check`).
+
 ### Phase 4: V1 Polish + Docs (1 week)
 - Deliverables:
   - `docs/setup/self-hosted-quickstart.md`

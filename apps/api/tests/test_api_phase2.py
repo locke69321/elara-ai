@@ -100,6 +100,60 @@ class Phase2ApiTest(unittest.TestCase):
             response = client.get("/agent-runs/missing/events", params={"last_seq": -1})
             self.assertEqual(response.status_code, 400)
 
+    def test_owner_can_create_and_list_invitations(self) -> None:
+        with TestClient(app) as client:
+            create = client.post(
+                "/workspaces/ws-invite/invitations",
+                json={"email": "new-user@example.com"},
+                headers={"x-user-id": "owner-invite", "x-user-role": "owner"},
+            )
+            self.assertEqual(create.status_code, 201)
+
+            listed = client.get(
+                "/workspaces/ws-invite/invitations",
+                headers={"x-user-id": "owner-invite", "x-user-role": "owner"},
+            )
+            self.assertEqual(listed.status_code, 200)
+            self.assertEqual(len(listed.json()), 1)
+
+    def test_member_cannot_create_invitation(self) -> None:
+        with TestClient(app) as client:
+            response = client.post(
+                "/workspaces/ws-invite/invitations",
+                json={"email": "new-user@example.com"},
+                headers={"x-user-id": "member-invite", "x-user-role": "member"},
+            )
+            self.assertEqual(response.status_code, 403)
+
+    def test_owner_can_create_and_decide_approval(self) -> None:
+        with TestClient(app) as client:
+            create = client.post(
+                "/workspaces/ws-approval/approvals",
+                json={
+                    "capability": "run_tool",
+                    "action": "delegate:spec:goal",
+                    "reason": "confirm risky operation",
+                },
+                headers={"x-user-id": "owner-approval", "x-user-role": "owner"},
+            )
+            self.assertEqual(create.status_code, 201)
+            approval_id = create.json()["id"]
+
+            decide = client.post(
+                f"/approvals/{approval_id}/decision",
+                json={"decision": "approved"},
+                headers={"x-user-id": "owner-approval", "x-user-role": "owner"},
+            )
+            self.assertEqual(decide.status_code, 200)
+            self.assertEqual(decide.json()["status"], "approved")
+
+            listed = client.get(
+                "/workspaces/ws-approval/approvals",
+                headers={"x-user-id": "owner-approval", "x-user-role": "owner"},
+            )
+            self.assertEqual(listed.status_code, 200)
+            self.assertEqual(len(listed.json()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

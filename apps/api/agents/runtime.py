@@ -3,8 +3,10 @@ from uuid import uuid4
 
 from apps.api.agents.completion import CompletionClient
 from apps.api.agents.policy import ActorContext, Capability, PolicyEngine
+from apps.api.audit import ImmutableAuditLog
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory.store_base import MemoryStore
+from apps.api.safety import ApprovalRequiredError, ApprovalService
 
 
 @dataclass(frozen=True)
@@ -45,11 +47,15 @@ class AgentRuntime:
         policy_engine: PolicyEngine,
         outbox: AgentRunEventOutbox,
         completion_client: CompletionClient,
+        approval_service: ApprovalService,
+        audit_log: ImmutableAuditLog,
     ) -> None:
         self._memory_store = memory_store
         self._policy = policy_engine
         self._outbox = outbox
         self._completion_client = completion_client
+        self._approvals = approval_service
+        self._audit = audit_log
         self._specialists_by_workspace: dict[str, dict[str, SpecialistAgent]] = {}
 
     def list_specialists(self, *, workspace_id: str) -> list[SpecialistAgent]:
@@ -69,6 +75,16 @@ class AgentRuntime:
 
         workspace_agents = self._specialists_by_workspace.setdefault(workspace_id, {})
         workspace_agents[specialist.id] = specialist
+        self._audit.append_event(
+            workspace_id=workspace_id,
+            actor_id=actor.user_id,
+            action="specialist.upserted",
+            outcome="success",
+            metadata={
+                "specialist_id": specialist.id,
+                "capabilities": sorted(specialist.capabilities),
+            },
+        )
         return specialist
 
     async def companion_message(
@@ -105,6 +121,13 @@ class AgentRuntime:
             event_type="companion.message",
             payload={"actor_id": actor_id, "memory_hits": memory_hits},
         )
+        self._audit.append_event(
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            action="companion.message",
+            outcome="success",
+            metadata={"memory_hit_count": len(memory_hits)},
+        )
 
         return CompanionReply(response=response, memory_hits=memory_hits)
 
@@ -114,19 +137,74 @@ class AgentRuntime:
         workspace_id: str,
         actor: ActorContext,
         goal: str,
+        approved_request_ids: set[str] | None = None,
     ) -> ExecutionReply:
+        approved_ids = approved_request_ids or set()
         specialists = self.list_specialists(workspace_id=workspace_id)
-        eligible_specialists = [
-            specialist
-            for specialist in specialists
-            if self._policy.can_delegate(
+        eligible_specialists: list[tuple[SpecialistAgent, bool]] = []
+        for specialist in specialists:
+            decision = self._policy.can_delegate(
                 actor=actor,
                 capabilities=specialist.capabilities,
-            ).allowed
-        ]
+            )
+            if decision.allowed:
+                eligible_specialists.append((specialist, decision.requires_approval))
 
         if not eligible_specialists:
+            self._audit.append_event(
+                workspace_id=workspace_id,
+                actor_id=actor.user_id,
+                action="goal.execute",
+                outcome="rejected",
+                metadata={"reason": "no eligible specialists"},
+            )
             raise ValueError("no specialist agents are eligible for delegation")
+
+        for specialist, requires_approval in eligible_specialists:
+            if not requires_approval:
+                continue
+
+            capability: Capability = (
+                "external_action"
+                if "external_action" in specialist.capabilities
+                else "run_tool"
+            )
+            action_scope = f"delegate:{specialist.id}:{goal}"
+            has_approval = any(
+                self._approvals.is_approved(
+                    approval_id=approval_id,
+                    workspace_id=workspace_id,
+                    actor_id=actor.user_id,
+                    capability=capability,
+                    action=action_scope,
+                )
+                for approval_id in approved_ids
+            )
+            if has_approval:
+                continue
+
+            request = self._approvals.create_request(
+                workspace_id=workspace_id,
+                actor_id=actor.user_id,
+                capability=capability,
+                action=action_scope,
+                reason="high-impact delegation requires explicit approval",
+            )
+            self._audit.append_event(
+                workspace_id=workspace_id,
+                actor_id=actor.user_id,
+                action="approval.requested",
+                outcome="pending",
+                metadata={
+                    "approval_id": request.id,
+                    "specialist_id": specialist.id,
+                    "capability": capability,
+                },
+            )
+            raise ApprovalRequiredError(
+                request.id,
+                "high-impact delegation requires explicit approval",
+            )
 
         agent_run_id = f"run-{uuid4()}"
         self._outbox.append_event(
@@ -134,9 +212,17 @@ class AgentRuntime:
             event_type="run.started",
             payload={"goal": goal, "actor_id": actor.user_id},
         )
+        self._audit.append_event(
+            workspace_id=workspace_id,
+            actor_id=actor.user_id,
+            action="goal.execute",
+            outcome="started",
+            metadata={"agent_run_id": agent_run_id, "goal": goal},
+        )
 
         delegated_results: list[DelegatedTaskResult] = []
-        for index, specialist in enumerate(eligible_specialists[:2], start=1):
+        for index, specialist_entry in enumerate(eligible_specialists[:2], start=1):
+            specialist = specialist_entry[0]
             task = f"Subtask {index}: contribute to goal '{goal}'"
             self._outbox.append_event(
                 agent_run_id=agent_run_id,
@@ -161,6 +247,17 @@ class AgentRuntime:
                 event_type="task.completed",
                 payload=asdict(delegated),
             )
+            self._audit.append_event(
+                workspace_id=workspace_id,
+                actor_id=actor.user_id,
+                action="task.delegated",
+                outcome="completed",
+                metadata={
+                    "agent_run_id": agent_run_id,
+                    "specialist_id": specialist.id,
+                    "task": task,
+                },
+            )
 
         summary = (
             f"Completed goal with {len(delegated_results)} delegated "
@@ -170,6 +267,13 @@ class AgentRuntime:
             agent_run_id=agent_run_id,
             event_type="run.completed",
             payload={"summary": summary},
+        )
+        self._audit.append_event(
+            workspace_id=workspace_id,
+            actor_id=actor.user_id,
+            action="goal.execute",
+            outcome="completed",
+            metadata={"agent_run_id": agent_run_id, "summary": summary},
         )
 
         return ExecutionReply(

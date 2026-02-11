@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Elara Agent Runtime API
-  version: 0.2.0
+  version: 0.3.0
 paths:
   /health:
     get:
@@ -104,6 +104,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExecutionGoalResponse"
+        "409":
+          description: Approval required
 
   /agent-runs/{agent_run_id}/events:
     get:
@@ -129,6 +131,173 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AgentRunEvent"
+
+  /workspaces/{workspace_id}/invitations:
+    get:
+      operationId: listInvitations
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invitation"
+    post:
+      operationId: createInvitation
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+
+  /invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+      responses:
+        "200":
+          description: Invitation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Membership"
+
+  /workspaces/{workspace_id}/approvals:
+    get:
+      operationId: listApprovals
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Approval request list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovalRequest"
+    post:
+      operationId: createApproval
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [capability, action, reason]
+              properties:
+                capability:
+                  type: string
+                  enum: [read_memory, write_memory, run_tool, delegate, external_action]
+                action:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Approval request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+
+  /approvals/{approval_id}/decision:
+    post:
+      operationId: decideApproval
+      parameters:
+        - in: path
+          name: approval_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approved, denied]
+      responses:
+        "200":
+          description: Approval request decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+
+  /workspaces/{workspace_id}/audit-events:
+    get:
+      operationId: listAuditEvents
+      parameters:
+        - in: path
+          name: workspace_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Immutable audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEvent"
 
 components:
   schemas:
@@ -174,6 +343,10 @@ components:
       properties:
         goal:
           type: string
+        approved_request_ids:
+          type: array
+          items:
+            type: string
 
     DelegatedTaskResult:
       type: object
@@ -215,3 +388,95 @@ components:
         payload:
           type: object
           additionalProperties: true
+
+    Invitation:
+      type: object
+      required:
+        [token, workspace_id, email, role, invited_by, created_at, expires_at, accepted]
+      properties:
+        token:
+          type: string
+        workspace_id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [member]
+        invited_by:
+          type: string
+        created_at:
+          type: string
+        expires_at:
+          type: string
+        accepted:
+          type: boolean
+
+    Membership:
+      type: object
+      required: [workspace_id, user_id, role, invited_via]
+      properties:
+        workspace_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [member]
+        invited_via:
+          type: string
+
+    ApprovalRequest:
+      type: object
+      required:
+        [id, workspace_id, actor_id, capability, action, reason, status, created_at]
+      properties:
+        id:
+          type: string
+        workspace_id:
+          type: string
+        actor_id:
+          type: string
+        capability:
+          type: string
+          enum: [read_memory, write_memory, run_tool, delegate, external_action]
+        action:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, denied]
+        created_at:
+          type: string
+        decided_at:
+          type: string
+          nullable: true
+        decided_by:
+          type: string
+          nullable: true
+
+    AuditEvent:
+      type: object
+      required:
+        [id, workspace_id, actor_id, action, outcome, metadata, previous_hash, event_hash, created_at]
+      properties:
+        id:
+          type: string
+        workspace_id:
+          type: string
+        actor_id:
+          type: string
+        action:
+          type: string
+        outcome:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        previous_hash:
+          type: string
+        event_hash:
+          type: string
+        created_at:
+          type: string

@@ -7,8 +7,10 @@ from apps.api.agents import (
     SpecialistAgent,
     StubCompletionClient,
 )
+from apps.api.audit import ImmutableAuditLog
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
+from apps.api.safety import ApprovalService
 
 
 class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
@@ -18,6 +20,8 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
             completion_client=StubCompletionClient(),
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
         )
 
         first = await runtime.companion_message(
@@ -40,6 +44,8 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
             completion_client=StubCompletionClient(),
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
         )
         actor = ActorContext(user_id="owner-1", role="owner")
 
@@ -74,6 +80,8 @@ class AgentRuntimeTest(unittest.IsolatedAsyncioTestCase):
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
             completion_client=StubCompletionClient(),
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
         )
         actor = ActorContext(user_id="owner-1", role="owner")
 

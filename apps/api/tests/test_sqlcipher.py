@@ -1,6 +1,6 @@
 import unittest
 
-from apps.api.db.sqlite import connect_sqlcipher
+from apps.api.db.sqlite import connect_sqlcipher, enforce_sqlite_security_if_enabled
 
 
 class FakeCursor:
@@ -22,6 +22,9 @@ class FakeConnection:
             return FakeCursor(self.cipher_version)
         return self
 
+    def close(self) -> None:
+        return None
+
 
 class SqlCipherConnectionTest(unittest.TestCase):
     def test_connection_validates_cipher_version(self) -> None:
@@ -37,6 +40,25 @@ class SqlCipherConnectionTest(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             connect_sqlcipher(lambda _: connection, "memory.db", "secret")
+
+    def test_secure_mode_requires_key(self) -> None:
+        with self.assertRaises(RuntimeError):
+            enforce_sqlite_security_if_enabled(
+                secure_mode_env="1",
+                db_key_env="",
+                database_url_env="memory.db",
+                connect_fn=lambda _: FakeConnection(cipher_version="4.5.0"),
+            )
+
+    def test_secure_mode_connects_when_enabled(self) -> None:
+        connection = FakeConnection(cipher_version="4.5.0")
+        enforce_sqlite_security_if_enabled(
+            secure_mode_env="1",
+            db_key_env="secret",
+            database_url_env="memory.db",
+            connect_fn=lambda _: connection,
+        )
+        self.assertIn(("PRAGMA key = ?;", ("secret",)), connection.commands)
 
 
 if __name__ == "__main__":

@@ -3,8 +3,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from apps.api.agents import ActorContext, AgentRuntime, PolicyEngine, SpecialistAgent
+from apps.api.audit import ImmutableAuditLog
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
+from apps.api.safety import ApprovalService
 
 
 class RuntimeUnitTest(unittest.IsolatedAsyncioTestCase):
@@ -17,6 +19,8 @@ class RuntimeUnitTest(unittest.IsolatedAsyncioTestCase):
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
             completion_client=completion_client,
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
         )
 
         await runtime.companion_message(
@@ -39,6 +43,8 @@ class RuntimeUnitTest(unittest.IsolatedAsyncioTestCase):
             policy_engine=PolicyEngine(),
             outbox=AgentRunEventOutbox(),
             completion_client=completion_client,
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
         )
         actor = ActorContext(user_id="owner-unit", role="owner")
 

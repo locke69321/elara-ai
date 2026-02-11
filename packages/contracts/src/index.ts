@@ -5,6 +5,7 @@ export type Capability =
   | 'run_tool'
   | 'delegate'
   | 'external_action'
+export type ApprovalDecision = 'approved' | 'denied'
 
 export interface Workspace {
   id: string
@@ -42,6 +43,7 @@ export interface CompanionMessageResponse {
 
 export interface ExecutionGoalRequest {
   goal: string
+  approved_request_ids?: string[]
 }
 
 export interface DelegatedTaskResult {
@@ -55,4 +57,47 @@ export interface ExecutionGoalResponse {
   agent_run_id: string
   summary: string
   delegated_results: DelegatedTaskResult[]
+}
+
+export interface Invitation {
+  token: string
+  workspace_id: string
+  email: string
+  role: 'member'
+  invited_by: string
+  created_at: string
+  expires_at: string
+  accepted: boolean
+}
+
+export interface Membership {
+  workspace_id: string
+  user_id: string
+  role: 'member'
+  invited_via: string
+}
+
+export interface ApprovalRequest {
+  id: string
+  workspace_id: string
+  actor_id: string
+  capability: Capability
+  action: string
+  reason: string
+  status: 'pending' | 'approved' | 'denied'
+  created_at: string
+  decided_at: string | null
+  decided_by: string | null
+}
+
+export interface AuditEvent {
+  id: string
+  workspace_id: string
+  actor_id: string
+  action: string
+  outcome: string
+  metadata: Record<string, unknown>
+  previous_hash: string
+  event_hash: string
+  created_at: string
 }

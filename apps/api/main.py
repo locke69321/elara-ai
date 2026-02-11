@@ -12,8 +12,12 @@ from apps.api.agents import (
     SpecialistAgent,
     StubCompletionClient,
 )
+from apps.api.audit import ImmutableAuditLog
+from apps.api.auth import InvitationService
+from apps.api.db.sqlite import enforce_sqlite_security_if_enabled
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
+from apps.api.safety import ApprovalRequiredError, ApprovalService
 
 Role = Literal["owner", "member"]
 Capability = Literal[
@@ -23,6 +27,7 @@ Capability = Literal[
     "delegate",
     "external_action",
 ]
+ApprovalDecision = Literal["approved", "denied"]
 
 
 class CompanionMessageRequest(BaseModel):
@@ -52,6 +57,7 @@ class SpecialistResponse(BaseModel):
 
 class ExecutionGoalRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=2_000)
+    approved_request_ids: list[str] = Field(default_factory=list)
 
 
 class DelegatedTaskResultResponse(BaseModel):
@@ -67,25 +73,100 @@ class ExecutionGoalResponse(BaseModel):
     delegated_results: list[DelegatedTaskResultResponse]
 
 
+class InvitationCreateRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class InvitationResponse(BaseModel):
+    token: str
+    workspace_id: str
+    email: str
+    role: str
+    invited_by: str
+    created_at: str
+    expires_at: str
+    accepted: bool
+
+
+class InvitationAcceptRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+
+
+class MembershipResponse(BaseModel):
+    workspace_id: str
+    user_id: str
+    role: str
+    invited_via: str
+
+
+class ApprovalCreateRequest(BaseModel):
+    capability: Capability
+    action: str = Field(min_length=3, max_length=512)
+    reason: str = Field(min_length=3, max_length=512)
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: ApprovalDecision
+
+
+class ApprovalResponse(BaseModel):
+    id: str
+    workspace_id: str
+    actor_id: str
+    capability: Capability
+    action: str
+    reason: str
+    status: str
+    created_at: str
+    decided_at: str | None
+    decided_by: str | None
+
+
+class AuditEventResponse(BaseModel):
+    id: str
+    workspace_id: str
+    actor_id: str
+    action: str
+    outcome: str
+    metadata: dict[str, object]
+    previous_hash: str
+    event_hash: str
+    created_at: str
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    enforce_sqlite_security_if_enabled()
+
     memory_store = SqliteMemoryStore()
     policy_engine = PolicyEngine()
     outbox = AgentRunEventOutbox()
     completion_client = StubCompletionClient()
+    approval_service = ApprovalService()
+    audit_log = ImmutableAuditLog()
+    invitation_service = InvitationService()
+
     app.state.runtime = AgentRuntime(
         memory_store=memory_store,
         policy_engine=policy_engine,
         outbox=outbox,
         completion_client=completion_client,
+        approval_service=approval_service,
+        audit_log=audit_log,
     )
+    app.state.approvals = approval_service
+    app.state.audit_log = audit_log
+    app.state.invitations = invitation_service
     yield
     del app.state.runtime
+    del app.state.approvals
+    del app.state.audit_log
+    del app.state.invitations
 
 
 app = FastAPI(
     title="Elara Agent API",
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -103,6 +184,36 @@ def get_runtime(request: Request) -> AgentRuntime:
             detail="runtime unavailable",
         )
     return cast(AgentRuntime, runtime)
+
+
+def get_approvals(request: Request) -> ApprovalService:
+    approvals = getattr(request.app.state, "approvals", None)
+    if approvals is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="approvals service unavailable",
+        )
+    return cast(ApprovalService, approvals)
+
+
+def get_audit_log(request: Request) -> ImmutableAuditLog:
+    audit_log = getattr(request.app.state, "audit_log", None)
+    if audit_log is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="audit service unavailable",
+        )
+    return cast(ImmutableAuditLog, audit_log)
+
+
+def get_invitations(request: Request) -> InvitationService:
+    invitations = getattr(request.app.state, "invitations", None)
+    if invitations is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="invitation service unavailable",
+        )
+    return cast(InvitationService, invitations)
 
 
 def get_actor(
@@ -208,7 +319,16 @@ async def execute_goal(
             workspace_id=workspace_id,
             actor=actor,
             goal=payload.goal,
+            approved_request_ids=set(payload.approved_request_ids),
         )
+    except ApprovalRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(exc),
+                "approval_id": exc.approval_id,
+            },
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -240,3 +360,228 @@ async def replay_events(
         )
 
     return runtime.replay_events(agent_run_id=agent_run_id, last_seq=last_seq)
+
+
+@app.post(
+    "/workspaces/{workspace_id}/invitations",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_invitation(
+    workspace_id: str,
+    payload: InvitationCreateRequest,
+    invitations: InvitationService = Depends(get_invitations),
+    audit_log: ImmutableAuditLog = Depends(get_audit_log),
+    actor: ActorContext = Depends(get_actor),
+) -> InvitationResponse:
+    if actor.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+
+    invitation = invitations.create_invitation(
+        workspace_id=workspace_id,
+        email=payload.email,
+        invited_by=actor.user_id,
+    )
+    audit_log.append_event(
+        workspace_id=workspace_id,
+        actor_id=actor.user_id,
+        action="invitation.created",
+        outcome="success",
+        metadata={"email": payload.email, "token": invitation.token},
+    )
+    return InvitationResponse(
+        token=invitation.token,
+        workspace_id=invitation.workspace_id,
+        email=invitation.email,
+        role=invitation.role,
+        invited_by=invitation.invited_by,
+        created_at=invitation.created_at,
+        expires_at=invitation.expires_at,
+        accepted=invitation.accepted,
+    )
+
+
+@app.get("/workspaces/{workspace_id}/invitations", response_model=list[InvitationResponse])
+async def list_invitations(
+    workspace_id: str,
+    invitations: InvitationService = Depends(get_invitations),
+    actor: ActorContext = Depends(get_actor),
+) -> list[InvitationResponse]:
+    if actor.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+
+    records = invitations.list_invitations(workspace_id=workspace_id)
+    return [
+        InvitationResponse(
+            token=record.token,
+            workspace_id=record.workspace_id,
+            email=record.email,
+            role=record.role,
+            invited_by=record.invited_by,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            accepted=record.accepted,
+        )
+        for record in records
+    ]
+
+
+@app.post("/invitations/{token}/accept", response_model=MembershipResponse)
+async def accept_invitation(
+    token: str,
+    payload: InvitationAcceptRequest,
+    invitations: InvitationService = Depends(get_invitations),
+    audit_log: ImmutableAuditLog = Depends(get_audit_log),
+) -> MembershipResponse:
+    try:
+        membership = invitations.accept_invitation(token=token, user_id=payload.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    audit_log.append_event(
+        workspace_id=membership.workspace_id,
+        actor_id=payload.user_id,
+        action="invitation.accepted",
+        outcome="success",
+        metadata={"token": token, "role": membership.role},
+    )
+    return MembershipResponse(
+        workspace_id=membership.workspace_id,
+        user_id=membership.user_id,
+        role=membership.role,
+        invited_via=membership.invited_via,
+    )
+
+
+@app.post(
+    "/workspaces/{workspace_id}/approvals",
+    response_model=ApprovalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_approval(
+    workspace_id: str,
+    payload: ApprovalCreateRequest,
+    approvals: ApprovalService = Depends(get_approvals),
+    audit_log: ImmutableAuditLog = Depends(get_audit_log),
+    actor: ActorContext = Depends(get_actor),
+) -> ApprovalResponse:
+    request = approvals.create_request(
+        workspace_id=workspace_id,
+        actor_id=actor.user_id,
+        capability=payload.capability,
+        action=payload.action,
+        reason=payload.reason,
+    )
+    audit_log.append_event(
+        workspace_id=workspace_id,
+        actor_id=actor.user_id,
+        action="approval.created",
+        outcome="pending",
+        metadata={"approval_id": request.id, "capability": payload.capability},
+    )
+    return ApprovalResponse(
+        id=request.id,
+        workspace_id=request.workspace_id,
+        actor_id=request.actor_id,
+        capability=request.capability,
+        action=request.action,
+        reason=request.reason,
+        status=request.status,
+        created_at=request.created_at,
+        decided_at=request.decided_at,
+        decided_by=request.decided_by,
+    )
+
+
+@app.post("/approvals/{approval_id}/decision", response_model=ApprovalResponse)
+async def decide_approval(
+    approval_id: str,
+    payload: ApprovalDecisionRequest,
+    approvals: ApprovalService = Depends(get_approvals),
+    audit_log: ImmutableAuditLog = Depends(get_audit_log),
+    actor: ActorContext = Depends(get_actor),
+) -> ApprovalResponse:
+    if actor.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+
+    try:
+        decided = approvals.decide_request(
+            approval_id=approval_id,
+            approver_id=actor.user_id,
+            decision=payload.decision,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    audit_log.append_event(
+        workspace_id=decided.workspace_id,
+        actor_id=actor.user_id,
+        action="approval.decided",
+        outcome=decided.status,
+        metadata={"approval_id": decided.id},
+    )
+    return ApprovalResponse(
+        id=decided.id,
+        workspace_id=decided.workspace_id,
+        actor_id=decided.actor_id,
+        capability=decided.capability,
+        action=decided.action,
+        reason=decided.reason,
+        status=decided.status,
+        created_at=decided.created_at,
+        decided_at=decided.decided_at,
+        decided_by=decided.decided_by,
+    )
+
+
+@app.get("/workspaces/{workspace_id}/approvals", response_model=list[ApprovalResponse])
+async def list_approvals(
+    workspace_id: str,
+    approvals: ApprovalService = Depends(get_approvals),
+    actor: ActorContext = Depends(get_actor),
+) -> list[ApprovalResponse]:
+    if actor.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+
+    records = approvals.list_requests(workspace_id=workspace_id)
+    return [
+        ApprovalResponse(
+            id=record.id,
+            workspace_id=record.workspace_id,
+            actor_id=record.actor_id,
+            capability=record.capability,
+            action=record.action,
+            reason=record.reason,
+            status=record.status,
+            created_at=record.created_at,
+            decided_at=record.decided_at,
+            decided_by=record.decided_by,
+        )
+        for record in records
+    ]
+
+
+@app.get("/workspaces/{workspace_id}/audit-events", response_model=list[AuditEventResponse])
+async def list_audit_events(
+    workspace_id: str,
+    audit_log: ImmutableAuditLog = Depends(get_audit_log),
+    actor: ActorContext = Depends(get_actor),
+) -> list[AuditEventResponse]:
+    if actor.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+
+    events = audit_log.list_events(workspace_id=workspace_id)
+    return [
+        AuditEventResponse(
+            id=event.id,
+            workspace_id=event.workspace_id,
+            actor_id=event.actor_id,
+            action=event.action,
+            outcome=event.outcome,
+            metadata=event.metadata,
+            previous_hash=event.previous_hash,
+            event_hash=event.event_hash,
+            created_at=event.created_at,
+        )
+        for event in events
+    ]

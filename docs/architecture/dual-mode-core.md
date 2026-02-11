@@ -1,6 +1,6 @@
-# Dual-Mode Core Architecture (Phases 1-2)
+# Dual-Mode Core Architecture (Phases 1-3)
 
-This document captures the implemented Phase 1 foundation and Phase 2 core behavior for Elara's dual-mode platform.
+This document captures the implemented Phase 1 foundation, Phase 2 core behavior, and Phase 3 security hardening for Elara's dual-mode platform.
 
 ## Delivered Components
 
@@ -18,17 +18,27 @@ This document captures the implemented Phase 1 foundation and Phase 2 core behav
 - `apps/api/agents/runtime.py`: primary/specialist orchestration for companion and execution flows.
 - `apps/api/agents/policy.py`: capability + role checks for delegation and specialist editing.
 - `apps/api/memory/store_*.py`: memory adapter interfaces and backend stubs.
+- `apps/api/audit/logging.py`: immutable hash-chained audit events.
+- `apps/api/auth/invitations.py`: owner invite and membership acceptance flow.
+- `apps/api/safety/approvals.py`: approval request and decision workflow for high-impact actions.
+- `deploy/docker-compose.yml`: minimal self-host runtime stack baseline.
+- `docs/security/threat-model-v1.md`: phase-3 threat model and checklist.
 
 ## Execution Boundaries
 
 - FastAPI app resources are initialized and torn down in `lifespan`.
 - TanStack privileged data path is modeled with `createServerFn` in `get-workspace.ts`.
 - Event stream replay contract uses `(agent_run_id, last_seq)` via outbox replay utilities.
-- Runtime endpoints expose phase-2 behavior:
+- Runtime endpoints expose phase-2 and phase-3 behavior:
   - `POST /workspaces/{workspace_id}/companion/messages`
   - `POST /workspaces/{workspace_id}/execution/goals`
   - `GET|POST /workspaces/{workspace_id}/specialists`
   - `GET /agent-runs/{agent_run_id}/events`
+  - `GET|POST /workspaces/{workspace_id}/invitations`
+  - `POST /invitations/{token}/accept`
+  - `GET|POST /workspaces/{workspace_id}/approvals`
+  - `POST /approvals/{approval_id}/decision`
+  - `GET /workspaces/{workspace_id}/audit-events`
 
 ## Data and Security Notes
 
@@ -36,10 +46,12 @@ This document captures the implemented Phase 1 foundation and Phase 2 core behav
 - SQLCipher startup path validates cipher availability and raises on insecure mode.
 - Envelope crypto is isolated behind `EnvelopeCipher` to support later KMS integration.
 - Policy engine defaults preserve v1 boundary: only owners can create or edit specialist definitions.
+- High-impact specialist actions (`run_tool`, `external_action`) require explicit approved requests.
+- Audit log entries are append-only and tamper-evident via per-workspace hash chaining.
 
 ## Next Implementation Targets
 
 - Real database adapter implementations for SQLite vector and pgvector.
-- Authn/authz and policy enforcement middleware.
+- Persistent storage for invitations, approvals, and audit events.
 - Worker execution loop wiring with persistent outbox delivery.
 - Route-level tests with TanStack Start runtime harness.

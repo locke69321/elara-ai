@@ -1,0 +1,83 @@
+# Threat Model v1
+
+## Scope
+
+This threat model covers the v1 self-hosted dual-mode runtime implemented in `apps/api`.
+
+In scope:
+- Role-based access controls for owner/member user roles
+- Specialist capability boundaries and high-impact approval flow
+- Invitation-based onboarding flow
+- Audit event integrity guarantees
+- SQLite secure mode startup checks
+
+Out of scope (v2+):
+- Enterprise SSO and external IdP integration
+- Multi-tenant org administration beyond owner/member
+- Hardware-backed key management systems
+
+## Assets
+
+- Memory records and conversation continuity payloads
+- Specialist definitions (prompt, soul, capabilities)
+- Delegation and approval decision history
+- Invitation tokens and membership bindings
+- Audit logs for sensitive operations
+
+## Trust Boundaries
+
+- API caller -> FastAPI route handlers
+- Runtime orchestration -> approval/policy/audit services
+- App process -> SQLite/SQLCipher runtime capabilities
+- Owner-only admin operations -> invitation and approval decisions
+
+## Primary Threats and Controls
+
+1. Unauthorized specialist modification by non-owner users
+- Threat: member escalates behavior by editing specialist capabilities.
+- Control: `PolicyEngine.can_edit_specialists` enforces owner-only writes.
+- Validation: e2e and api tests assert `403` for member edits.
+
+2. Unsafe high-impact actions without explicit approval
+- Threat: delegated specialists execute external or tooling actions automatically.
+- Control: runtime raises `ApprovalRequiredError` and creates approval requests when `requires_approval` is true.
+- Validation: e2e flow requires explicit approval decision before re-execution succeeds.
+
+3. Audit log tampering
+- Threat: attackers alter action history to hide changes.
+- Control: append-only audit log with per-workspace hash chain (`previous_hash` + payload hash).
+- Validation: unit test verifies chain fails when event content is tampered.
+
+4. Insecure SQLite startup in secure deployments
+- Threat: deployment expects encrypted SQLite but starts plaintext.
+- Control: startup check `enforce_sqlite_security_if_enabled` fails closed when secure mode is enabled without SQLCipher/key.
+- Validation: unit tests cover key-missing and successful secure-mode validation.
+
+5. Invitation abuse or replay
+- Threat: reused or expired invitation token grants unintended membership.
+- Control: invitation service marks tokens accepted once and rejects reused/expired tokens.
+- Validation: unit tests verify duplicate acceptance is rejected.
+
+## Security Checklist (Pre-Release)
+
+- [x] Authz checks enforce owner-only specialist edits
+- [x] High-impact delegation requires explicit approval
+- [x] Approval decisions are auditable with actor and timestamp
+- [x] Invitation creation and acceptance are auditable
+- [x] SQLCipher secure-mode startup guard exists and fails closed
+- [x] Lint/typecheck/no-any/coverage gates pass via `make check`
+- [ ] External tool allowlist enforcement finalized for production providers
+- [ ] Key rotation runbook finalized for operator docs
+
+## Residual Risks
+
+- Services are currently in-memory; persistence hardening is still required.
+- Approval semantics are explicit but not yet bound to a durable identity provider.
+- Audit chain is tamper-evident in-process; append-only external storage is recommended for production.
+
+## Next Hardening Steps
+
+1. Persist approvals, invitations, and audit events in encrypted storage.
+2. Add signed audit exports and off-host retention policy.
+3. Integrate session-based auth and CSRF protections for browser workflows.
+4. Introduce key rotation and KMS-backed envelope key support.

@@ -60,6 +60,72 @@ class DualModeFlowE2ETest(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 403)
 
+    def test_high_impact_execution_requires_approval_and_can_resume(self) -> None:
+        with TestClient(app) as client:
+            create_specialist = client.post(
+                "/workspaces/ws-e2e-approval/specialists",
+                json={
+                    "id": "spec-high-impact",
+                    "name": "High Impact Specialist",
+                    "prompt": "Perform external action",
+                    "soul": "Careful",
+                    "capabilities": ["delegate", "external_action"],
+                },
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_specialist.status_code, 201)
+
+            first_execute = client.post(
+                "/workspaces/ws-e2e-approval/execution/goals",
+                json={"goal": "perform high impact action"},
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(first_execute.status_code, 409)
+            approval_id = first_execute.json()["detail"]["approval_id"]
+
+            decide = client.post(
+                f"/approvals/{approval_id}/decision",
+                json={"decision": "approved"},
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(decide.status_code, 200)
+
+            second_execute = client.post(
+                "/workspaces/ws-e2e-approval/execution/goals",
+                json={
+                    "goal": "perform high impact action",
+                    "approved_request_ids": [approval_id],
+                },
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(second_execute.status_code, 200)
+            self.assertEqual(len(second_execute.json()["delegated_results"]), 1)
+
+    def test_invitation_flow_and_audit_log_e2e(self) -> None:
+        with TestClient(app) as client:
+            create_invitation = client.post(
+                "/workspaces/ws-e2e-invite/invitations",
+                json={"email": "invitee@example.com"},
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(create_invitation.status_code, 201)
+            token = create_invitation.json()["token"]
+
+            accept_invitation = client.post(
+                f"/invitations/{token}/accept",
+                json={"user_id": "member-e2e"},
+            )
+            self.assertEqual(accept_invitation.status_code, 200)
+
+            audit_events = client.get(
+                "/workspaces/ws-e2e-invite/audit-events",
+                headers={"x-user-id": "owner-e2e", "x-user-role": "owner"},
+            )
+            self.assertEqual(audit_events.status_code, 200)
+            actions = [event["action"] for event in audit_events.json()]
+            self.assertIn("invitation.created", actions)
+            self.assertIn("invitation.accepted", actions)
+
 
 if __name__ == "__main__":
     unittest.main()
