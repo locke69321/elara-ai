@@ -61,6 +61,20 @@ class DualModeFlowE2ETest(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 403)
 
+    def test_privileged_route_rejects_missing_identity_headers_e2e(self) -> None:
+        with TestClient(app) as client:
+            response = client.post(
+                "/workspaces/ws-e2e-missing-auth/specialists",
+                json={
+                    "id": "spec-unauth",
+                    "name": "Unauth Specialist",
+                    "prompt": "Do work",
+                    "soul": "Strict",
+                    "capabilities": ["delegate"],
+                },
+            )
+            self.assertEqual(response.status_code, 401)
+
     def test_high_impact_execution_requires_approval_and_can_resume(self) -> None:
         with TestClient(app) as client:
             create_specialist = client.post(

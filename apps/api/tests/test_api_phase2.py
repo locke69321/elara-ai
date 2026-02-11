@@ -28,6 +28,20 @@ class Phase2ApiTest(unittest.TestCase):
 
             self.assertEqual(response.status_code, 403)
 
+    def test_missing_identity_headers_cannot_create_specialist(self) -> None:
+        with TestClient(app) as client:
+            response = client.post(
+                "/workspaces/ws-missing-auth/specialists",
+                json={
+                    "id": "spec-a",
+                    "name": "Spec A",
+                    "prompt": "Do work",
+                    "soul": "Calm",
+                    "capabilities": ["delegate"],
+                },
+            )
+            self.assertEqual(response.status_code, 401)
+
     def test_owner_can_create_specialist_and_execute_goal(self) -> None:
         with TestClient(app) as client:
             create_response = client.post(

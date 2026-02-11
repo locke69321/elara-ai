@@ -217,19 +217,6 @@ def get_invitations(request: Request) -> InvitationService:
 
 
 def get_actor(
-    x_user_id: str = Header(default="local-owner"),
-    x_user_role: str = Header(default="owner"),
-) -> ActorContext:
-    if x_user_role not in {"owner", "member"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="x-user-role must be owner or member",
-        )
-
-    return ActorContext(user_id=x_user_id, role=cast(Role, x_user_role))
-
-
-def get_authenticated_actor(
     x_user_id: str | None = Header(default=None),
     x_user_role: str | None = Header(default=None),
 ) -> ActorContext:
@@ -371,7 +358,7 @@ async def replay_events(
     agent_run_id: str,
     last_seq: int = 0,
     runtime: AgentRuntime = Depends(get_runtime),
-    actor: ActorContext = Depends(get_authenticated_actor),
+    actor: ActorContext = Depends(get_actor),
 ) -> list[dict[str, object]]:
     if last_seq < 0:
         raise HTTPException(
