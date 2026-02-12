@@ -1,9 +1,29 @@
+import os
+import tempfile
 import unittest
 
 from apps.api.safety import ApprovalService
 
 
 class ApprovalsUnitTest(unittest.TestCase):
+    def test_approvals_persist_across_service_instances_when_db_path_is_used(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = os.path.join(tmp_dir, "approvals.sqlite3")
+            first = ApprovalService(database_path=db_path)
+            request = first.create_request(
+                workspace_id="ws-approval-persist",
+                actor_id="owner-1",
+                capability="run_tool",
+                action="delegate:spec:goal",
+                reason="persist me",
+            )
+
+            second = ApprovalService(database_path=db_path)
+            persisted = second.get_request(approval_id=request.id)
+            self.assertIsNotNone(persisted)
+            if persisted is not None:
+                self.assertEqual(persisted.workspace_id, "ws-approval-persist")
+
     def test_create_and_decide_approval(self) -> None:
         approvals = ApprovalService()
         request = approvals.create_request(

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 from apps.api.agents import ActorContext, AgentRuntime, PolicyEngine, SpecialistAgent
 from apps.api.audit import ImmutableAuditLog
-from apps.api.events.outbox import AgentRunEventOutbox
+from apps.api.events.outbox import AgentRunEvent, AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
 from apps.api.safety import ApprovalService
 
@@ -99,6 +99,38 @@ class RuntimeUnitTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("actor_id", payload)
         self.assertNotIn("memory_hits", payload)
         self.assertIn("memory_hit_count", payload)
+
+    async def test_replay_denies_when_persisted_acl_is_missing(self) -> None:
+        outbox = SimpleNamespace(
+            register_run_access=lambda **_kwargs: None,
+            append_event=lambda **_kwargs: None,
+            is_run_access_allowed=lambda **_kwargs: None,
+            replay=lambda **_kwargs: [
+                AgentRunEvent(
+                    agent_run_id="run-unit-legacy",
+                    seq=1,
+                    event_type="run.started",
+                    payload={"goal": "legacy replay"},
+                    created_at="2026-02-11T00:00:00+00:00",
+                )
+            ],
+        )
+        runtime = AgentRuntime(
+            memory_store=SqliteMemoryStore(),
+            policy_engine=PolicyEngine(),
+            outbox=outbox,
+            completion_client=SimpleNamespace(complete=AsyncMock(return_value="ok")),
+            approval_service=ApprovalService(),
+            audit_log=ImmutableAuditLog(),
+        )
+        actor = ActorContext(user_id="owner-unit", role="owner")
+
+        with self.assertRaises(PermissionError):
+            runtime.replay_events(
+                agent_run_id="run-unit-legacy",
+                actor=actor,
+                last_seq=0,
+            )
 
 
 if __name__ == "__main__":

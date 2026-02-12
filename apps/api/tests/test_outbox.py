@@ -1,9 +1,24 @@
+import os
+import tempfile
 import unittest
 
 from apps.api.events.outbox import AgentRunEventOutbox
 
 
 class AgentRunEventOutboxTest(unittest.TestCase):
+    def test_sequence_and_replay_cursor_persist_across_outbox_instances(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            db_path = os.path.join(tmp_dir, "outbox.sqlite3")
+            first = AgentRunEventOutbox(database_path=db_path)
+            first.append_event(agent_run_id="run-persist", event_type="a", payload={})
+            first.append_event(agent_run_id="run-persist", event_type="b", payload={})
+
+            second = AgentRunEventOutbox(database_path=db_path)
+            second.append_event(agent_run_id="run-persist", event_type="c", payload={})
+
+            replayed = second.replay(agent_run_id="run-persist", last_seq=1)
+            self.assertEqual([event.seq for event in replayed], [2, 3])
+
     def test_append_assigns_monotonic_sequence(self) -> None:
         outbox = AgentRunEventOutbox()
 

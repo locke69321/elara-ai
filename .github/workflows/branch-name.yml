@@ -1,0 +1,15 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  branch-name:
+    name: branch-name
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate pull request branch name
+        run: bash scripts/ci/validate-branch-name.sh "${{ github.head_ref }}"

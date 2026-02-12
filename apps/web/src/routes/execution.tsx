@@ -1,46 +1,60 @@
 import { createFileRoute } from '@tanstack/react-router'
 
+import { ApprovalBanner } from '../components/approval-banner'
+import { TimelineEvent } from '../components/timeline-event'
+import { postExecutionGoal } from '../lib/server/dual-mode'
+
 export const Route = createFileRoute('/execution')({
   component: ExecutionPage,
 })
 
 function ExecutionPage() {
-  return (
-    <section className="space-y-5">
-      <h2 className="text-xl font-medium">Execution</h2>
-      <p className="text-sm text-slate-700">
-        Plan goals, delegate subtasks to specialists, and inspect deterministic run events.
-      </p>
+  const executionPreview = postExecutionGoal
+  void executionPreview
 
-      <form className="rounded-lg border border-slate-200 bg-white p-4">
-        <label className="block text-sm font-medium text-slate-800" htmlFor="goal-input">
-          Goal
-        </label>
+  return (
+    <section className="route-grid">
+      <article className="panel">
+        <h2>Execution Workflow</h2>
+        <p>Submit goals, resume from sequence checkpoints, and inspect delegation events.</p>
+
+        <label htmlFor="goal-input">Goal</label>
         <input
           id="goal-input"
+          data-testid="execution-goal-input"
           type="text"
-          className="mt-2 w-full rounded-md border border-slate-300 p-3 text-sm"
           placeholder="Describe what you want executed..."
         />
-        <button
-          type="button"
-          className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
-        >
+        <button type="button" data-testid="execution-submit-button">
           Execute Goal
         </button>
-      </form>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Delegation Timeline
-        </h3>
-        <ol className="mt-3 list-decimal space-y-2 pl-6 text-sm text-slate-700">
-          <li>run.started</li>
-          <li>task.delegated</li>
-          <li>task.completed</li>
-          <li>run.completed</li>
-        </ol>
-      </div>
+        <ApprovalBanner status="required" approvalId="approval-00042" />
+
+        <div className="replay-controls" data-testid="replay-resume-controls">
+          <div>
+            <label htmlFor="last-seq">Replay from Sequence</label>
+            <input id="last-seq" type="number" defaultValue={8} min={0} />
+          </div>
+          <button type="button" data-testid="replay-resume-button">
+            Resume Replay
+          </button>
+        </div>
+      </article>
+
+      <article className="panel">
+        <h3>Delegation Timeline</h3>
+        <ul className="timeline-list" data-testid="execution-timeline">
+          <TimelineEvent sequence={1} eventType="run.started" details="Goal accepted" />
+          <TimelineEvent
+            sequence={2}
+            eventType="task.delegated"
+            details="Assigned to Research Specialist"
+          />
+          <TimelineEvent sequence={3} eventType="task.completed" details="Specialist returned output" />
+          <TimelineEvent sequence={4} eventType="run.completed" details="Execution summary generated" />
+        </ul>
+      </article>
     </section>
   )
 }

@@ -1,12 +1,12 @@
 ---
-title: "feat: Agent-Native Companion Dual-Mode v1"
+title: "feat: Agent-Native Companion Dual-Mode v0.1"
 type: feat
 date: 2026-02-10
 source_brainstorm: docs/brainstorms/2026-02-10-agent-native-companion-platform-brainstorm.md
 deepened_on: 2026-02-11
 ---
 
-# feat: Agent-Native Companion Dual-Mode v1
+# feat: Agent-Native Companion Dual-Mode v0.1
 
 ## Enhancement Summary
 **Deepened on:** 2026-02-11  
@@ -18,7 +18,7 @@ deepened_on: 2026-02-11
 2. Added vector/memory portability strategy across SQLite and pgvector/Supabase with explicit indexing and migration constraints.
 3. Added stronger security and operability gates (SQLCipher key handling, approval policies, auditability, and measurable SLOs).
 4. Added deterministic event streaming contract (outbox + monotonic sequence + replay cursor).
-5. Added v1 policy defaults to unblock phase acceptance criteria and reduce scope ambiguity.
+5. Added v0.1 policy defaults to unblock phase acceptance criteria and reduce scope ambiguity.
 6. Added explicit deployment security/compatibility requirements for Supabase RLS and SQLite encrypted-vector runtime.
 
 ### New Considerations Discovered
@@ -31,7 +31,7 @@ Build a self-hosted web application where users can both:
 1. chat/roleplay with one or two primary agents, and
 2. execute goals through a customizable team of specialist agents.
 
-v1 is optimized for solo power users and small trusted groups, with secure-by-default foundations, database-first memory, and modular capabilities so deployments only include what they use.
+v0.1 is optimized for solo power users and small trusted groups, with secure-by-default foundations, database-first memory, and modular capabilities so deployments only include what they use.
 
 Selected stack:
 - Backend: Python + FastAPI
@@ -178,7 +178,7 @@ create index if not exists memory_embedding_workspace_idx
   - Owner bootstrap flow
   - Invite-only user onboarding for small trusted groups
 - Authorization:
-  - RBAC v1: `owner`, `member`
+  - RBAC v0.1: `owner`, `member`
   - Agent capability scopes: `read_memory`, `write_memory`, `run_tool`, `delegate`, `external_action`
 - Encryption:
   - SQLite encrypted at rest (SQLCipher-compatible)
@@ -188,7 +188,7 @@ create index if not exists memory_embedding_workspace_idx
   - Policy engine for blocked/allowed tool categories
   - Human-in-the-loop confirmations for high-impact actions
   - Immutable audit log for delegated actions and tool outputs
-- v1 policy defaults (to remove implementation ambiguity):
+- v0.1 policy defaults (to remove implementation ambiguity):
   - High-impact actions requiring approval: filesystem write/delete outside app workspace, external HTTP requests to non-allowlisted domains, shell command execution, credential/secret mutations
   - Invited members may use existing specialist agents but cannot create/edit specialist agent definitions (owner-only)
 - Supabase requirements (when using Supabase adapter):
@@ -252,7 +252,7 @@ if not cipher_version or not cipher_version[0]:
 - Roleplay and execution tabs open concurrently on mobile; define conflict handling for draft states.
 
 ### Modular Packaging
-- Keep v1 install minimal:
+- Keep v0.1 install minimal:
   - Core ships with baseline models/providers and local DB support
   - Optional agent/tool packs installed separately
 - Avoid bundling heavyweight providers/integrations unless enabled
@@ -386,16 +386,16 @@ flowchart TD
 - [x] Added key-rotation and secure-mode guidance in setup/ops documentation.
 
 ## Alternative Approaches Considered
-- Companion-first v1: rejected because execution would likely be shallow.
-- Orchestrator-first v1: rejected because companion continuity would become secondary.
-- Full multi-tenant v1: rejected (explicitly deferred to v2+) due high admin/security complexity.
+- Companion-first v0.1: rejected because execution would likely be shallow.
+- Orchestrator-first v0.1: rejected because companion continuity would become secondary.
+- Full multi-tenant v0.1: rejected (explicitly deferred to v2+) due high admin/security complexity.
 
 ## Acceptance Criteria
 
 ### Functional Requirements
 - [ ] User can create and interact with one or two primary agents across Companion and Execution modes.
 - [ ] Owner can create/edit specialist agents with custom prompts, soul metadata, and capability scopes.
-- [ ] Invited members can use assigned specialist agents but cannot create/edit specialist agent definitions in v1.
+- [ ] Invited members can use assigned specialist agents but cannot create/edit specialist agent definitions in v0.1.
 - [ ] Execution mode supports delegated subtasks with per-agent attribution.
 - [ ] Memory writes and retrievals work through a common API on SQLite and Postgres/Supabase backends.
 - [ ] Owner can invite members with constrained permissions.
@@ -455,15 +455,15 @@ flowchart TD
 - Risk: unsafe delegated tool execution.
   - Mitigation: default-deny policies + approval gates + immutable audit logs.
 - Risk: scope creep from customization requests.
-  - Mitigation: strict v1 boundaries and deferred multi-tenant administration.
+  - Mitigation: strict v0.1 boundaries and deferred multi-tenant administration.
 - Risk: migration friction SQLite -> Postgres.
-  - Mitigation: explicit export/import format and migration utility in v1 docs.
+  - Mitigation: explicit export/import format and migration utility in v0.1 docs.
 - Risk: framework volatility (TanStack Start alpha evolution).
   - Mitigation: pin tested version range and isolate framework-specific integration behind thin wrappers.
 - Risk: SQLite encrypted-vector runtime incompatibility on some environments.
   - Mitigation: publish tested compatibility matrix and fail installation when required capabilities are unavailable.
 
-## ERD (v1 Core Models)
+## ERD (v0.1 Core Models)
 ```mermaid
 erDiagram
   USER ||--o{ WORKSPACE_MEMBER : "belongs_to"
@@ -487,7 +487,7 @@ erDiagram
 ## Open Questions (To Resolve Before Build Start)
 1. Which LLM providers are required for day-one support?
 2. Which backup cadence is required for default self-host guidance?
-3. Should v1 include a read-only auditor role, or defer to v2?
+3. Should v0.1 include a read-only auditor role, or defer to v2?
 
 ## Documentation Plan
 - Author architecture doc and ADRs for:

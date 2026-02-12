@@ -16,6 +16,7 @@ from apps.api.agents import (
 from apps.api.audit import ImmutableAuditLog
 from apps.api.auth import InvitationService, WorkspaceAccessService
 from apps.api.db.sqlite import enforce_sqlite_security_if_enabled
+from apps.api.db.state import connect_state_db
 from apps.api.events.outbox import AgentRunEventOutbox
 from apps.api.memory import SqliteMemoryStore
 from apps.api.safety import ApprovalRequiredError, ApprovalService
@@ -138,15 +139,26 @@ class AuditEventResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     enforce_sqlite_security_if_enabled()
+    state_connection = connect_state_db()
 
-    memory_store = SqliteMemoryStore()
+    memory_store = SqliteMemoryStore(connection=state_connection)
     policy_engine = PolicyEngine()
-    outbox = AgentRunEventOutbox()
+    outbox = AgentRunEventOutbox(connection=state_connection)
     completion_client = StubCompletionClient()
-    approval_service = ApprovalService()
-    audit_log = ImmutableAuditLog()
-    invitation_service = InvitationService()
-    workspace_access_service = WorkspaceAccessService()
+    approval_service = ApprovalService(connection=state_connection)
+    audit_log = ImmutableAuditLog(connection=state_connection)
+    invitation_service = InvitationService(connection=state_connection)
+    workspace_access_service = WorkspaceAccessService(connection=state_connection)
+    for workspace_id, owner_id in workspace_access_service.list_workspace_owners():
+        workspace_access_service.add_workspace_owner(
+            workspace_id=workspace_id,
+            owner_id=owner_id,
+        )
+    for membership in invitation_service.list_memberships():
+        workspace_access_service.add_workspace_member(
+            workspace_id=membership.workspace_id,
+            user_id=membership.user_id,
+        )
 
     app.state.runtime = AgentRuntime(
         memory_store=memory_store,
@@ -166,6 +178,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     del app.state.audit_log
     del app.state.invitations
     del app.state.workspace_access
+    state_connection.close()
 
 
 app = FastAPI(

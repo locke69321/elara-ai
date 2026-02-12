@@ -8,9 +8,9 @@ function read(path) {
 
 test('root route exposes dual-mode navigation links', () => {
   const source = read(new URL('../src/routes/__root.tsx', import.meta.url))
-  assert.match(source, /Companion/)
-  assert.match(source, /Execution/)
-  assert.match(source, /Agent Studio/)
+  assert.match(source, /AppShell/)
+  assert.match(source, /workspaceName/)
+  assert.match(source, /connectionStatus/)
 })
 
 test('server boundary function is defined with createServerFn', () => {
@@ -27,7 +27,7 @@ test('core routes are present', () => {
   assert.match(companion, /createFileRoute\('\/companion'\)/)
   assert.match(execution, /createFileRoute\('\/execution'\)/)
   assert.match(studio, /createFileRoute\('\/agent-studio'\)/)
-  assert.match(companion, /Send Companion Message/)
-  assert.match(execution, /Execute Goal/)
-  assert.match(studio, /Save Specialist Agent/)
+  assert.match(companion, /memory-hit-chip/)
+  assert.match(execution, /ApprovalBanner/)
+  assert.match(studio, /SpecialistForm/)
 })

@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.1.0 - Initial Public Publish
+## v0.0.1 - Initial Public Publish
 
-Release notes: `docs/releases/v0.1.0-initial-publish.md`
+Release notes: `docs/releases/v0.0.1-initial-publish.md`
 
 ### Included Commits
 

@@ -32,6 +32,7 @@ declare module '@tanstack/react-router' {
   ): (options: { component: RouteComponent }) => unknown
 
   export function Link(props: {
+    key?: string
     to: string
     className?: string
     children?: unknown
@@ -44,6 +45,10 @@ declare module '@tanstack/react-start' {
   type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
   export function createServerFn(options: { method: HttpMethod }): {
-    handler<T>(fn: () => T | Promise<T>): () => Promise<T>
+    handler<TArgs = void, TResult = void>(
+      fn: (args: TArgs) => TResult | Promise<TResult>,
+    ): (args: TArgs) => Promise<TResult>
   }
 }
+
+declare module '*.css'

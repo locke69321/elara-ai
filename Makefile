@@ -1,6 +1,6 @@
-SHELL := /bin/zsh
+SHELL := /bin/bash
 
-.PHONY: help bootstrap api-test api-test-e2e api-test-integration api-test-unit web-test test lint api-lint web-lint typecheck api-typecheck web-typecheck no-any coverage check dev-api clean
+.PHONY: help bootstrap api-test api-test-e2e api-test-integration api-test-unit web-test test lint api-lint web-lint typecheck api-typecheck web-typecheck no-any coverage api-coverage web-coverage worker-coverage coverage-all web-browser-contract app-authz-integration sqlite-compat perf check dev-api clean
 
 help:
 	@echo "Targets:"
@@ -10,7 +10,12 @@ help:
 	@echo "  make typecheck  - run Python and TypeScript type checks"
 	@echo "  make no-any     - fail if Python source contains explicit Any"
 	@echo "  make coverage   - run API tests with coverage threshold (>= 90%)"
-	@echo "  make check      - run lint, typecheck, and coverage gates"
+	@echo "  make coverage-all - run API, web, and worker coverage gates (>= 90% each)"
+	@echo "  make web-browser-contract - run Playwright browser route contract checks"
+	@echo "  make app-authz-integration - run cross-workspace app authorization checks"
+	@echo "  make sqlite-compat - run SQLite secure/vector compatibility checks"
+	@echo "  make perf       - run API and memory performance benchmarks"
+	@echo "  make check      - run lint, typecheck, no-any, and coverage-all gates"
 	@echo "  make dev-api    - run FastAPI dev server"
 	@echo "  make clean      - remove local caches"
 
@@ -54,16 +59,41 @@ typecheck: api-typecheck web-typecheck
 no-any:
 	@! rg -n "\\bAny\\b" apps/api apps/worker --glob '*.py'
 
-coverage:
-	PYTHONPATH=. uv run coverage run -m unittest discover -s apps/api/tests -t .
-	uv run coverage report
+api-coverage:
+	PYTHONPATH=. uv run coverage run --data-file=.coverage.api --source=apps/api -m unittest discover -s apps/api/tests -t .
+	uv run coverage report --data-file=.coverage.api --fail-under=90
+
+web-coverage:
+	pnpm --filter elara-web coverage
+
+worker-coverage:
+	PYTHONPATH=. uv run coverage run --data-file=.coverage.worker --source=apps/worker -m unittest discover -s apps/worker/tests -t .
+	uv run coverage report --data-file=.coverage.worker --fail-under=90
+
+coverage-all: api-coverage web-coverage worker-coverage
+
+coverage: api-coverage
+
+web-browser-contract:
+	pnpm --filter elara-web test:browser-contract
+
+app-authz-integration:
+	PYTHONPATH=. uv run python -m unittest apps.api.tests.integration.test_app_authz_integration
+
+sqlite-compat:
+	PYTHONPATH=. uv run python scripts/compat/check_sqlite_vector_compat.py
+
+perf:
+	PYTHONPATH=. uv run python scripts/perf/fixtures/generate_fixture_dataset.py
+	PYTHONPATH=. uv run python scripts/perf/run_api_latency.py
+	PYTHONPATH=. uv run python scripts/perf/run_memory_retrieval.py
 
 dev-api:
 	PYTHONPATH=. uv run uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8000
 
-check: lint typecheck no-any coverage
+check: lint typecheck no-any coverage-all
 
 clean:
 	find . -name "__pycache__" -type d -prune -exec rm -rf {} +
 	find . -name "*.pyc" -type f -delete
-	rm -rf .ruff_cache .pytest_cache .mypy_cache .coverage .venv
+	rm -rf .ruff_cache .pytest_cache .mypy_cache .coverage .coverage.api .coverage.worker .venv
